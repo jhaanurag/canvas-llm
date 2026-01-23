@@ -1,0 +1,42 @@
+
+export type Message = {
+    id: string;
+    role: 'user' | 'model';
+    text: string;
+    sourceText?: string;
+    timestamp: number;
+};
+
+export type Node = {
+    id: string;
+    type: 'chat' | 'note' | 'drawing';
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    messages: Message[];
+    parentId?: string;
+    sourceSelection?: string;
+    color?: string;
+    title?: string;
+    content?: string; // For notes
+    initialPrompt?: string;
+};
+
+export type Connection = {
+    id: string;
+    fromId: string;
+    toId: string;
+    label?: string;
+};
+
+export type ContextItem = {
+    id: string;
+    text: string;
+    sourceNodeId: string;
+};
+
+export type CanvasState = {
+    nodes: Node[];
+    connections: Connection[];
+};
