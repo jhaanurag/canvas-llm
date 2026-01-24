@@ -1,0 +1,10 @@
+model_list:
+  - model_name: gpt-4.1-2025-04-14
+    litellm_params:
+      model: github_copilot/gpt-4.1-2025-04-14
+      extra_headers:
+        Editor-Version: vscode/1.97.2
+        Copilot-Integration-Id: vscode-chat
+        User-Agent: GitHubCopilot/1.200.0
+        Copilot-Vision-Request: "true"
+        Editor-Plugin-Version: copilot/1.200.0

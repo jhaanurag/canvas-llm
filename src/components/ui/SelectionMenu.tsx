@@ -21,7 +21,8 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
 
     return (
         <div
-            className="fixed z-[3000] bg-white border-[3px] border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] p-1.5 flex gap-1 items-center animate-in fade-in zoom-in duration-100"
+            data-selection-menu="true"
+            className="fixed z-[9999] bg-white border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] px-1.5 py-1 flex gap-1.5 items-center"
             style={{ left: x, top: y }}
         >
             {!isCustom ? (
@@ -29,45 +30,44 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-2 text-xs font-bold border-r-2 border-black rounded-none hover:bg-black hover:text-white"
+                        className="h-8 px-4 text-[11px] font-black border-r border-black rounded-none hover:bg-black hover:text-white uppercase"
                         onClick={onExpand}
                     >
-                        <Search size={14} className="mr-1" />
+                        <Search size={14} className="mr-2" />
                         EXPAND
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-2 text-xs font-bold border-r-2 border-black rounded-none hover:bg-black hover:text-white"
+                        className="h-8 px-4 text-[11px] font-black border-r border-black rounded-none hover:bg-black hover:text-white uppercase"
                         onClick={() => setIsCustom(true)}
                     >
-                        <HelpCircle size={14} className="mr-1" />
+                        <HelpCircle size={14} className="mr-2" />
                         ASK
                     </Button>
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-2 text-xs font-bold rounded-none hover:bg-black hover:text-white"
+                        className="h-8 px-3 text-[11px] font-black rounded-none hover:bg-black hover:text-white"
                         onClick={onAddToContext}
                     >
-                        <Plus size={14} />
+                        <Plus size={18} />
                     </Button>
-                    <div className="w-[1px] h-4 bg-neutral-300 mx-1" />
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-1 text-xs font-bold rounded-none hover:bg-red-100 text-neutral-400 hover:text-red-500"
+                        className="h-8 px-2 text-[11px] font-black rounded-none hover:bg-red-500 hover:text-white text-neutral-400"
                         onClick={onClose}
                     >
-                        <X size={14} />
+                        <X size={18} />
                     </Button>
                 </>
             ) : (
-                <div className="flex gap-1">
+                <div className="flex gap-1 items-center px-1 py-0.5">
                     <Input
                         autoFocus
-                        className="h-8 text-xs border-2 border-black rounded-none w-48 focus-visible:ring-0"
-                        placeholder="Ask anything about this selection..."
+                        className="h-8 text-[11px] border-2 border-black rounded-none w-56 focus-visible:ring-0 font-bold placeholder:text-neutral-400"
+                        placeholder="Ask about selection..."
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         onKeyDown={(e) => {
@@ -77,7 +77,7 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                     />
                     <Button
                         size="sm"
-                        className="h-8 border-2 border-black bg-black text-white hover:bg-white hover:text-black rounded-none"
+                        className="h-8 px-4 border-2 border-black bg-black text-white hover:bg-white hover:text-black rounded-none font-black text-[11px] uppercase"
                         onClick={() => onCustomAsk(customPrompt)}
                     >
                         SEND
@@ -85,10 +85,10 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 border-2 border-black rounded-none hover:bg-red-100"
+                        className="h-8 px-2 border-2 border-black rounded-none hover:bg-red-500 hover:text-white text-neutral-400"
                         onClick={() => setIsCustom(false)}
                     >
-                        <X size={14} />
+                        <X size={18} />
                     </Button>
                 </div>
             )}

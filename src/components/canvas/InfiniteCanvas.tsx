@@ -6,7 +6,6 @@ import { Node, Connection, Message } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
-import { Toolbar } from './Toolbar';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -22,13 +21,49 @@ export const InfiniteCanvas = () => {
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const canvasRef = useRef<HTMLDivElement>(null);
 
+    // Global selection listener for better reliability
+    useEffect(() => {
+        const handleSelectionChange = () => {
+            // Wait for next tick to ensure selection is complete and layout is stable
+            requestAnimationFrame(() => {
+                const sel = window.getSelection();
+                const text = sel?.toString().trim();
+
+                // Only showing menu if there is actual text selected
+                if (text && text.length > 0) {
+                    try {
+                        const range = sel!.getRangeAt(0);
+                        const rect = range.getBoundingClientRect();
+
+                        // Avoid updating if the selection hasn't meaningfully changed (prevents flicker)
+                        // But always show if we have text and no current global selection
+                        setGlobalSelection({
+                            text: text,
+                            x: rect.left,
+                            y: rect.bottom + 40,
+                            nodeId: '' // Generic selection
+                        });
+                    } catch (e) {
+                        // Ignore errors from getRangeAt if selection is invalid
+                    }
+                }
+            });
+        };
+
+        document.addEventListener('selectionchange', handleSelectionChange);
+        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    }, []);
+
     const onMouseDown = (e: React.MouseEvent) => {
         if (e.button === 1 || (e.button === 0 && (e.altKey || activeTool === 'hand'))) {
             setIsPanning(true);
             e.preventDefault();
         }
-        // Clear selection menu when clicking on the empty canvas
-        if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('canvas-area')) {
+        // Clear selection menu when clicking on the empty canvas (but not on nodes or menu)
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-selection-menu]') &&
+            !target.closest('.pointer-events-auto') &&
+            (target === canvasRef.current || target.classList.contains('canvas-area'))) {
             setGlobalSelection(null);
         }
     };
@@ -112,11 +147,11 @@ export const InfiniteCanvas = () => {
         setContextBuffer(prev => [...prev, { id: uuidv4(), text, sourceNodeId }]);
     };
 
-    const removeFromContext = (id: string) => {
+    const removeFromContext = useCallback((id: string) => {
         setContextBuffer(prev => prev.filter(item => item.id !== id));
-    };
+    }, []);
 
-    const handleBranch = useCallback((nodeId: string, selection: string, type: 'expand' | 'custom', customPrompt?: string) => {
+    const handleBranch = useCallback((nodeId: string, selection: string, type: 'expand' | 'custom', customPrompt?: string, useBuffer: boolean = false) => {
         const node = nodes.find(n => n.id === nodeId);
         if (!node) return;
 
@@ -133,7 +168,7 @@ export const InfiniteCanvas = () => {
                 : customPrompt || `Question about "${selection}": `;
 
             let fullPrompt = prompt;
-            if (contextBuffer.length > 0) {
+            if (useBuffer && contextBuffer.length > 0) {
                 fullPrompt = `Using this specific context:\n${contextBuffer.map(i => `[CTX]: ${i.text}`).join('\n')}\n\n${prompt}`;
                 setContextBuffer([]);
             }
@@ -178,48 +213,101 @@ export const InfiniteCanvas = () => {
         >
 
 
-            <Toolbar
-                activeTool={activeTool}
-                setActiveTool={setActiveTool}
-                onAddNode={(type) => addNode(type, -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2)}
-                onRecenter={() => setOffset({ x: 0, y: 0 })}
-            />
 
-            {/* Context Bar */}
-            {contextBuffer.length > 0 && (
-                <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[2000] flex flex-col items-center gap-2">
-                    <div className="bg-white border-2 border-black p-0 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex flex-col min-w-[300px]">
-                        <div className="bg-black text-white px-3 py-1 flex justify-between items-center">
-                            <span className="text-[10px] font-bold uppercase tracking-tighter">Knowledge Buffer</span>
-                            <button onClick={() => setContextBuffer([])} className="text-[10px] hover:text-neutral-400 font-bold uppercase underline">Clear All</button>
-                        </div>
-                        <div className="p-2 flex flex-wrap gap-2 max-w-xl">
+
+            {/* Unified Bottom Toolbar with Inline Context */}
+            <div className="fixed bottom-0 left-0 right-0 pointer-events-auto z-[2000]">
+                <div className="bg-white border-t-2 border-black py-2 px-4 flex flex-col gap-1.5">
+                    {/* Context Buffer Row - Only show when there are items */}
+                    {contextBuffer.length > 0 && (
+                        <div className="flex items-center gap-2 overflow-x-auto px-2 pb-1 scrollbar-thin scrollbar-thumb-black">
+                            <span className="text-[9px] font-black uppercase tracking-wider shrink-0 text-neutral-600">CONTEXT:</span>
                             {contextBuffer.map(item => {
                                 const words = item.text.trim().split(/\s+/).filter(w => w.length > 0);
-                                const count = words.length;
                                 const firstWords = words.slice(0, 2).join(' ');
                                 const lastWords = words.slice(-2).join(' ');
-                                const display = count > 4
-                                    ? `(${firstWords} ... ${lastWords})`
-                                    : `(${item.text})`;
+                                const display = words.length > 4
+                                    ? `${firstWords} ... ${lastWords}`
+                                    : item.text;
                                 return (
-                                    <div key={item.id} className="bg-neutral-100 border-2 border-black px-2 py-1 flex items-center gap-3 animate-in slide-in-from-top-1 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                                        <span className="text-[11px] font-black text-black uppercase tracking-tight">
-                                            {display} <span className="ml-1 bg-black text-white px-1">{count} words</span>
-                                        </span>
-                                        <button
-                                            onClick={() => removeFromContext(item.id)}
-                                            className="hover:bg-black hover:text-white border border-transparent hover:border-black px-1 font-bold transition-colors"
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
+                                    <button
+                                        key={item.id}
+                                        onClick={() => removeFromContext(item.id)}
+                                        className="bg-neutral-100 border-2 border-black px-4 py-1 shrink-0 hover:bg-red-100 hover:line-through"
+                                        title="Click to remove"
+                                    >
+                                        <span className="text-[11px] font-semibold text-black">{display}</span>
+                                    </button>
                                 );
                             })}
+                            <button
+                                onClick={() => setContextBuffer([])}
+                                className="text-[10px] font-bold uppercase text-red-500 hover:text-red-700 shrink-0 px-2"
+                            >
+                                Clear
+                            </button>
                         </div>
+                    )}
+
+                    {/* Toolbar Buttons Row */}
+                    <div className="flex items-center justify-center gap-1.5 py-0.5">
+                        <button
+                            className="px-5 py-2 hover:bg-neutral-100 rounded-none border border-transparent hover:border-black"
+                            onClick={() => setOffset({ x: 0, y: 0 })}
+                            title="Recenter (H)"
+                        >
+                            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                            </svg>
+                        </button>
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => {
+                                const newNode = addNode('chat', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2);
+                                if (contextBuffer.length > 0) {
+                                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
+                                    // Pass context directly to input box via initialPrompt
+                                    setTimeout(() => {
+                                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
+                                            ...n,
+                                            initialPrompt: `Context:\n${contextText}\n\nMy Question: `
+                                        } : n));
+                                        setContextBuffer([]);
+                                    }, 100);
+                                }
+                            }}
+                            title="New Chat (C)"
+                        >
+                            CHAT
+                        </button>
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => addNode('note', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2)}
+                            title="New Note (N)"
+                        >
+                            NOTE
+                        </button>
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => addNode('drawing', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2)}
+                            title="New Drawing (D)"
+                        >
+                            DRAW
+                        </button>
+                        <button
+                            className="w-8 h-8 flex items-center justify-center hover:bg-neutral-100 rounded-full border border-transparent hover:border-black font-bold text-sm"
+                            onClick={() => {
+                                // TODO: Show shortcuts modal
+                                alert('Shortcuts:\nC = New Chat\nN = New Note\nD = New Drawing\nH = Recenter\nEsc = Clear Selection');
+                            }}
+                            title="Help & Shortcuts"
+                        >
+                            ?
+                        </button>
                     </div>
                 </div>
-            )}
+            </div>
+
 
             <div className="fixed top-20 right-4 w-32 h-24 bg-white border-2 border-black z-[1000] opacity-80 pointer-events-none hidden md:block">
                 <div className="relative w-full h-full">
@@ -236,7 +324,6 @@ export const InfiniteCanvas = () => {
                             }}
                         />
                     ))}
-                    {/* Viewport indicator */}
                     <div
                         className="absolute border border-blue-500"
                         style={{
@@ -255,11 +342,11 @@ export const InfiniteCanvas = () => {
                     x={globalSelection.x}
                     y={globalSelection.y}
                     onExpand={() => {
-                        handleBranch(globalSelection.nodeId, globalSelection.text, 'expand');
+                        handleBranch(globalSelection.nodeId, globalSelection.text, 'expand', undefined, true);
                         setGlobalSelection(null);
                     }}
                     onCustomAsk={(prompt: string) => {
-                        handleBranch(globalSelection.nodeId, globalSelection.text, 'custom', prompt);
+                        handleBranch(globalSelection.nodeId, globalSelection.text, 'custom', prompt, true);
                         setGlobalSelection(null);
                     }}
                     onAddToContext={() => {
@@ -270,12 +357,7 @@ export const InfiniteCanvas = () => {
                 />
             )}
 
-            {selectedNodeIds.length > 0 && (
-                <div className="fixed top-4 left-4 z-[2000] bg-black text-white px-3 py-1 flex items-center gap-2 font-bold text-xs">
-                    {selectedNodeIds.length} NODES SELECTED FOR CONTEXT
-                    <button onClick={() => setSelectedNodeIds([])} className="hover:text-red-400">CLEAR</button>
-                </div>
-            )}
+            {/* Removed "X nodes selected" banner - unified with context buffer */}
 
             <div
                 className="absolute inset-0"
@@ -350,6 +432,7 @@ export const InfiniteCanvas = () => {
                             isSelected={isSelected}
                             onMouseDown={() => bringToFront(node.id)}
                             setGlobalSelection={(sel) => setGlobalSelection(sel ? { ...sel, nodeId: node.id } : null)}
+                            onAddToContext={addToContext}
                         />
                     );
                     if (node.type === 'drawing') return (

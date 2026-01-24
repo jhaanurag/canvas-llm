@@ -5,6 +5,7 @@ export type Message = {
     text: string;
     sourceText?: string;
     timestamp: number;
+    attachments?: { data: string; mimeType: string; name: string }[];
 };
 
 export type Node = {
@@ -21,6 +22,7 @@ export type Node = {
     title?: string;
     content?: string; // For notes
     initialPrompt?: string;
+    systemPrompt?: string;
 };
 
 export type Connection = {

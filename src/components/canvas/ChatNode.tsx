@@ -8,9 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import { streamGeminiResponse } from '@/lib/gemini';
+import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, FileText, Paperclip, CheckSquare, Square } from 'lucide-react';
+import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings, Check } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
@@ -24,7 +24,7 @@ interface ChatNodeProps {
     onDelete: () => void;
     onSelect: () => void;
     onMouseDown: () => void;
-    onAddToContext: (text: string) => void;
+    onAddToContext: (text: string, nodeId: string) => void;
     setGlobalSelection: (selection: { text: string; x: number; y: number } | null) => void;
     isSelected: boolean;
     selectedNodesContext?: Node[];
@@ -46,14 +46,21 @@ export const ChatNode = ({
     isSelected,
     selectedNodesContext = []
 }: ChatNodeProps) => {
-    const [input, setInput] = useState('');
+    const [input, setInput] = useState(node.initialPrompt || '');
     const [isDragging, setIsDragging] = useState(false);
     const [showNotes, setShowNotes] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [didDrag, setDidDrag] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState<{ data: string; mimeType: string; name: string }[]>([]);
+    const [showSystemPrompt, setShowSystemPrompt] = useState(false);
+    const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
+    const [isEditingTitle, setIsEditingTitle] = useState(false);
+    const [title, setTitle] = useState(node.title || '');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+
 
     const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +77,9 @@ export const ChatNode = ({
             setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
             setDidDrag(false);
             e.stopPropagation();
+        } else {
+            // Reset didDrag when clicking in the node content area
+            setDidDrag(false);
         }
     };
 
@@ -132,6 +142,7 @@ export const ChatNode = ({
             role: 'user',
             text: overridePrompt || input, // Show clean input to user
             timestamp: Date.now(),
+            attachments: [...attachedFiles]
         };
 
         const newMessages = [...node.messages, userMsg];
@@ -153,11 +164,11 @@ export const ChatNode = ({
         let fullText = '';
         try {
             const history = node.messages.map(m => ({
-                role: m.role,
-                parts: [{ text: m.text }]
+                role: m.role as 'user' | 'assistant',
+                text: m.text
             }));
 
-            const stream = streamGeminiResponse(text, history, filesToSend);
+            const stream = streamGeminiResponse(text, history, filesToSend, systemPrompt);
             for await (const chunk of stream) {
                 fullText += chunk;
                 updateMessages([...newMessages, { ...assistantMsg, text: fullText }]);
@@ -169,22 +180,7 @@ export const ChatNode = ({
     };
 
     const onMouseUp = (e: React.MouseEvent) => {
-        if (didDrag) return;
-        const sel = window.getSelection();
-        const text = sel?.toString().trim();
-        if (text && text.length > 0) {
-            const range = sel!.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            setGlobalSelection({
-                text: text,
-                x: rect.left,
-                y: rect.bottom + 40, // More down as requested
-            });
-        } else {
-            // Clear selection if user clicked but didn't select anything
-            setGlobalSelection(null);
-        }
-        // Don't clear on every mouseup, or it disappears when clicking the menu
+        // Selection handled globally in InfiniteCanvas
     };
 
     return (
@@ -193,7 +189,7 @@ export const ChatNode = ({
                 "absolute pointer-events-auto",
                 !isDragging && "transition-all duration-200",
                 activeContextId === node.id ? "scale-[1.02]" : "",
-                isSelected ? "ring-4 ring-black" : "",
+                isSelected ? "ring-2 ring-blue-500" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -213,39 +209,80 @@ export const ChatNode = ({
                 setActiveContextId(null);
             }}
         >
-            <Card className={clsx(
-                "flex flex-col h-full border-2 transition-colors duration-200 rounded-none overflow-hidden",
-                (isHovered || isDragging || isSelected) ? "border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]" : "border-transparent bg-transparent shadow-none"
-            )}>
+            <Card
+                className={clsx(
+                    "flex flex-col h-full border-2 rounded-none overflow-hidden",
+                    (isHovered || isDragging || isSelected) ? "border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]" : "border-transparent bg-transparent shadow-none"
+                )}
+                style={{ padding: 0, gap: 0 }}
+            >
                 <div
                     className={clsx(
-                        "drag-handle flex items-center justify-between p-2 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0 transition-opacity",
+                        "drag-handle flex items-center justify-between px-4 py-2 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0",
                         (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
                     )}
                     onMouseDown={handleMouseDown}
                 >
                     <div className="flex items-center gap-2">
-                        <GripVertical size={16} />
-                        <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="hover:bg-neutral-200 p-1">
-                            {isSelected ? <CheckSquare size={14} fill="black" stroke="white" /> : <Square size={14} />}
-                        </button>
-                        <span className="text-[10px] font-bold uppercase tracking-tight">
-                            {node.parentId ? 'BRANCH' : 'MAIN'}
-                        </span>
+                        <GripVertical size={14} />
+                        {isEditingTitle ? (
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                onBlur={() => {
+                                    setIsEditingTitle(false);
+                                    updateContent(title);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        setIsEditingTitle(false);
+                                        updateContent(title);
+                                    }
+                                }}
+                                className="text-[9px] font-black uppercase tracking-tight bg-transparent border-none outline-none w-20"
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <span
+                                className="text-[9px] font-black uppercase tracking-tight cursor-pointer hover:text-blue-600"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsEditingTitle(true);
+                                }}
+                            >
+                                {title || 'Untitled'}
+                            </span>
+                        )}
                     </div>
                     <div className="flex gap-2 items-center">
-                        {selectedNodesContext.length > 0 && <span className="text-[8px] bg-black text-white px-1">+{selectedNodesContext.length} CTX</span>}
-                        <Button size="icon" variant="ghost" className="h-6 w-6 rounded-none p-0" onClick={() => setShowNotes(!showNotes)}>
-                            <FileText size={14} />
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 rounded-none p-0 hover:bg-blue-100"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const allText = node.messages.map(m => `${m.role}: ${m.text}`).join('\n\n');
+                                onAddToContext(allText, node.id);
+                            }} title="Add chat to context"
+                        >
+                            <Plus size={18} className={isSelected ? 'text-blue-600' : ''} />
                         </Button>
-                        <X size={16} className="cursor-pointer" onClick={onDelete} />
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none p-0" onClick={(e) => { e.stopPropagation(); setShowSystemPrompt(!showSystemPrompt); }}>
+                            <Settings size={18} className={showSystemPrompt ? 'text-blue-600' : ''} />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none p-0" onClick={(e) => { e.stopPropagation(); setShowNotes(!showNotes); }}>
+                            <FileText size={18} />
+                        </Button>
+                        <X size={20} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {node.sourceSelection && (
                         <div className={clsx(
-                            "p-2 border-b border-black text-[10px] italic overflow-hidden whitespace-nowrap text-ellipsis shrink-0 font-medium transition-opacity",
+                            "p-2 border-b border-black text-[10px] italic overflow-hidden whitespace-nowrap text-ellipsis shrink-0 font-medium",
                             (isHovered || isDragging) ? "opacity-100" : "opacity-30",
                             activeContextId === node.parentId ? "bg-black text-white" : "bg-neutral-50"
                         )}>
@@ -253,19 +290,33 @@ export const ChatNode = ({
                         </div>
                     )}
 
-                    {showNotes ? (
-                        <div className="flex-1 flex flex-col p-2 bg-amber-50 overflow-hidden">
-                            <span className="text-[10px] font-bold mb-1">LOCAL NOTES</span>
+                    {showSystemPrompt ? (
+                        <div className="flex-1 flex flex-col px-5 py-3 bg-blue-50 overflow-hidden border-b-2 border-black">
+                            <span className="text-[11px] font-black mb-1 uppercase tracking-tight">SYSTEM PROMPT</span>
                             <Textarea
-                                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-xs p-0 resize-none rounded-none font-medium"
+                                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-xs p-0 resize-none rounded-none"
+                                value={systemPrompt}
+                                onChange={(e) => {
+                                    const newPrompt = e.target.value;
+                                    setSystemPrompt(newPrompt);
+                                    updateContent(newPrompt);
+                                }}
+                                placeholder="Set the AI's behavior..."
+                            />
+                        </div>
+                    ) : showNotes ? (
+                        <div className="flex-1 flex flex-col px-5 py-3 bg-amber-50 overflow-hidden">
+                            <span className="text-[11px] font-black mb-1 uppercase tracking-tight">LOCAL NOTES</span>
+                            <Textarea
+                                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-xs p-0 resize-none rounded-none"
                                 value={node.content}
                                 onChange={(e) => updateContent(e.target.value)}
-                                placeholder="Capture thoughts here..."
+                                placeholder="Notes..."
                             />
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto bg-white scrollbar-thin scrollbar-thumb-black scrollbar-track-transparent">
-                            <div className="p-3 space-y-4">
+                        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-thin scrollbar-thumb-black scrollbar-track-transparent">
+                            <div className="px-5 py-3 space-y-3">
                                 {node.messages.map((msg) => (
                                     <div
                                         key={msg.id}
@@ -276,10 +327,29 @@ export const ChatNode = ({
                                     >
                                         <div
                                             className={clsx(
-                                                "p-2 text-xs border-2 border-black font-semibold leading-relaxed rounded-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]",
+                                                "px-4 py-2 text-xs border-2 border-black font-semibold leading-tight rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] break-words overflow-wrap-anywhere",
                                                 msg.role === 'user' ? "bg-black text-white" : "bg-white",
                                             )}
+                                            style={{ wordWrap: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}
                                         >
+                                            {msg.attachments && msg.attachments.length > 0 && (
+                                                <div className="flex flex-col gap-2 mb-2">
+                                                    {msg.attachments.map((file, idx) => (
+                                                        file.mimeType.startsWith('image/') ? (
+                                                            <img
+                                                                key={idx}
+                                                                src={file.data}
+                                                                alt={file.name}
+                                                                className="max-w-full h-auto border border-white/20"
+                                                            />
+                                                        ) : (
+                                                            <div key={idx} className="text-[10px] bg-white/20 p-1 truncate">
+                                                                📎 {file.name}
+                                                            </div>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            )}
                                             {msg.text}
                                         </div>
                                     </div>
@@ -291,31 +361,32 @@ export const ChatNode = ({
                 </div>
 
                 <div className={clsx(
-                    "p-3 border-t-2 border-black flex gap-2 shrink-0 bg-neutral-100 transition-opacity",
+                    "px-5 py-3 border-t-2 border-black flex gap-3 shrink-0 bg-neutral-100",
                     (isHovered || isDragging || input || attachedFiles.length > 0) ? "opacity-100" : "opacity-0"
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
                     <Button
                         size="icon"
                         variant="outline"
-                        className="border-2 border-black h-8 w-8 rounded-none hover:bg-black hover:text-white"
+                        className="border-2 border-black h-12 w-12 rounded-none hover:bg-black hover:text-white p-0"
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <Paperclip size={14} />
+                        <Paperclip size={20} />
                     </Button>
                     <Input
+                        ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                        placeholder="Talk with AI..."
-                        className="flex-1 border-2 border-black focus-visible:ring-0 text-xs h-8 rounded-none bg-white font-bold"
+                        placeholder="Ask AI..."
+                        className="flex-1 border-2 border-black focus-visible:ring-0 text-sm h-12 rounded-none bg-white font-semibold"
                     />
                     <Button
                         onClick={() => sendMessage()}
                         variant="outline"
-                        className="border-2 border-black h-8 px-2 hover:bg-black hover:text-white rounded-none focus:bg-black focus:text-white"
+                        className="border-2 border-black h-12 px-5 hover:bg-black hover:text-white rounded-none"
                     >
-                        <Send size={14} />
+                        <Send size={20} />
                     </Button>
                 </div>
             </Card>

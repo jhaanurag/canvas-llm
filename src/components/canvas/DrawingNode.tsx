@@ -112,26 +112,23 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex items-center justify-between p-2 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0 transition-opacity",
+                        "drag-handle flex items-center justify-between p-1 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0 transition-opacity",
                         (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
                     )}
                     onMouseDown={handleMouseDown}
                 >
-                    <div className="flex items-center gap-2">
-                        <GripVertical size={16} />
-                        <button onClick={(e) => { e.stopPropagation(); onSelect(); }} className="hover:bg-neutral-200 p-1">
-                            {isSelected ? <CheckSquare size={14} fill="black" stroke="white" /> : <Square size={14} />}
-                        </button>
-                        <div className="flex gap-1 overflow-hidden ml-2">
-                            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-none p-0" onClick={() => setTool('pen')}>
-                                <Pencil size={12} className={tool === 'pen' ? 'text-blue-600' : ''} />
+                    <div className="flex items-center gap-1">
+                        <GripVertical size={14} />
+                        <div className="flex gap-0.5 overflow-hidden ml-1">
+                            <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" onClick={() => setTool('pen')}>
+                                <Pencil size={10} className={tool === 'pen' ? 'text-blue-600' : ''} />
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-6 w-6 rounded-none p-0" onClick={() => setTool('eraser')}>
-                                <Eraser size={12} className={tool === 'eraser' ? 'text-blue-600' : ''} />
+                            <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" onClick={() => setTool('eraser')}>
+                                <Eraser size={10} className={tool === 'eraser' ? 'text-blue-600' : ''} />
                             </Button>
                         </div>
                     </div>
-                    <X size={16} className="cursor-pointer" onClick={onDelete} />
+                    <X size={14} className="cursor-pointer" onClick={onDelete} />
                 </div>
                 <canvas
                     ref={canvasRef}
