@@ -92,7 +92,6 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         <div
             className={clsx(
                 "absolute pointer-events-auto",
-                !isDragging && "transition-all duration-200",
                 isSelected ? "ring-4 ring-black" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
@@ -107,12 +106,12 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className={clsx(
-                "flex flex-col h-full border-2 transition-colors duration-200 rounded-none overflow-hidden",
-                (isHovered || isDragging || isSelected) ? "border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]" : "border-transparent bg-transparent shadow-none"
+                "flex flex-col h-full border-2 rounded-none overflow-hidden",
+                (isHovered || isDragging || isSelected) ? "border-black bg-white" : "border-transparent bg-transparent"
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex items-center justify-between p-1 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0 transition-opacity",
+                        "drag-handle flex items-center justify-between p-1 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0",
                         (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
                     )}
                     onMouseDown={handleMouseDown}

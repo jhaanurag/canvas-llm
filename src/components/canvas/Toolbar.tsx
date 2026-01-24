@@ -14,7 +14,7 @@ interface ToolbarProps {
 
 export const Toolbar = ({ onAddNode, activeTool, setActiveTool, onRecenter }: ToolbarProps) => {
     return (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white border-2 border-black p-1 flex gap-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] z-[1000]">
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-white border-2 border-black p-1 flex gap-1 z-[1000]">
             <Button
                 variant="ghost"
                 size="sm"

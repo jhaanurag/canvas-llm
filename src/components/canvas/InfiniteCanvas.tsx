@@ -151,29 +151,50 @@ export const InfiniteCanvas = () => {
         setContextBuffer(prev => prev.filter(item => item.id !== id));
     }, []);
 
-    const handleBranch = useCallback((nodeId: string, selection: string, type: 'expand' | 'custom', customPrompt?: string, useBuffer: boolean = false) => {
+    const handleBranch = useCallback((nodeId: string, selection: string, type: 'expand' | 'custom', x: number = 0, y: number = 0, customPrompt?: string, useBuffer: boolean = false) => {
         const node = nodes.find(n => n.id === nodeId);
-        if (!node) return;
 
-        const childrenCount = connections.filter(c => c.fromId === node.id).length;
-        const spacing = 500;
-        const angle = (childrenCount * 40 - 20) * Math.PI / 180;
-        const newX = node.x + spacing * Math.cos(angle);
-        const newY = node.y + spacing * Math.sin(angle);
-        const newNode = addNode('chat', newX + offset.x, newY + offset.y, node.id, selection);
+        let newX = x;
+        let newY = y - 400; // Place above selection (since chat height is 500)
+
+        if (node) {
+            const childrenCount = connections.filter(c => c.fromId === node.id).length;
+            const spacing = 500;
+            const angle = (childrenCount * 40 - 20) * Math.PI / 180;
+            newX = node.x + spacing * Math.cos(angle) + offset.x; // addNode subtracts offset, so adding it here cancels out to keep absolute logic coords? 
+            // Wait, addNode does: x: Math.round((x - offset.x) / SNAP) * SNAP
+            // node.x is ALREADY logic-space.
+            // If we want newX to be logic-space relative to node.x, we should pass (node.x + dx + offset.x) to addNode?
+            // Yes, because addNode subtracts offset.
+
+            // logic-space position
+            const targetX = node.x + spacing * Math.cos(angle);
+            const targetY = node.y + spacing * Math.sin(angle);
+
+            // Convert to screen-space for addNode
+            newX = targetX + offset.x;
+            newY = targetY + offset.y;
+        }
+
+        const newNode = addNode('chat', newX, newY, node?.id, selection);
 
         setTimeout(() => {
             const prompt = type === 'expand'
-                ? `Deeper dive into "${selection}".`
+                ? `elaborate : "${selection}"`
                 : customPrompt || `Question about "${selection}": `;
 
             let fullPrompt = prompt;
             if (useBuffer && contextBuffer.length > 0) {
-                fullPrompt = `Using this specific context:\n${contextBuffer.map(i => `[CTX]: ${i.text}`).join('\n')}\n\n${prompt}`;
+                // Add extra newline before My Question as requested
+                fullPrompt = `Using this specific context:\n${contextBuffer.map(i => `[CTX]: ${i.text}`).join('\n')}\n\n\n${prompt}`;
                 setContextBuffer([]);
             }
 
-            setNodes(prev => prev.map(n => n.id === newNode.id ? { ...n, initialPrompt: fullPrompt } : n));
+            setNodes(prev => prev.map(n => n.id === newNode.id ? {
+                ...n,
+                initialPrompt: fullPrompt,
+                autoSend: type === 'expand' // Auto-send only for expand flow
+            } : n));
         }, 100);
     }, [nodes, connections, addNode, offset, contextBuffer]);
 
@@ -187,9 +208,9 @@ export const InfiniteCanvas = () => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-            if (e.key === 'c') addNode('chat', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2);
-            if (e.key === 'n') addNode('note', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2);
-            if (e.key === 'd') addNode('drawing', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2);
+            if (e.key === '1') addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
+            if (e.key === '2') addNode('note', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
+            if (e.key === '3') addNode('drawing', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
             if (e.key === 'h') setOffset({ x: 0, y: 0 });
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -215,11 +236,73 @@ export const InfiniteCanvas = () => {
 
 
 
-            {/* Unified Bottom Toolbar with Inline Context */}
-            <div className="fixed bottom-0 left-0 right-0 pointer-events-auto z-[2000]">
-                <div className="bg-white border-t-2 border-black py-2 px-4 flex flex-col gap-1.5">
-                    {/* Context Buffer Row - Only show when there are items */}
-                    {contextBuffer.length > 0 && (
+            {/* Unified Bottom UI - Attached Notch Toolbar */}
+            <div className="fixed bottom-0 left-0 right-0 pointer-events-none z-[2000] flex flex-col items-center">
+
+                {/* Floating Dock "Notch" */}
+                <div className="pointer-events-auto bg-white border-2 border-black border-b-0 p-1.5 flex items-center gap-4">
+                    <button
+                        className="p-2 hover:bg-neutral-100 rounded-none border border-transparent hover:border-black shrink-0"
+                        onClick={() => setOffset({ x: 0, y: 0 })}
+                        title="Recenter (H)"
+                    >
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+                        </svg>
+                    </button>
+
+                    <div className="flex gap-1.5">
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => {
+                                const newNode = addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
+                                if (contextBuffer.length > 0) {
+                                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
+                                    // Pass context directly to input box via initialPrompt
+                                    setTimeout(() => {
+                                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
+                                            ...n,
+                                            initialPrompt: `Context:\n${contextText}\n\n\nMy Question: `
+                                        } : n));
+                                        setContextBuffer([]);
+                                    }, 100);
+                                }
+                            }}
+                            title="New Chat (C)"
+                        >
+                            CHAT
+                        </button>
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => addNode('note', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3)}
+                            title="New Note (N)"
+                        >
+                            NOTE
+                        </button>
+                        <button
+                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
+                            onClick={() => addNode('drawing', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3)}
+                            title="New Drawing (D)"
+                        >
+                            DRAW
+                        </button>
+                    </div>
+
+                    <button
+                        className="w-10 h-10 flex items-center justify-center hover:bg-neutral-100 border border-transparent hover:border-black font-bold text-sm shrink-0"
+                        onClick={() => {
+                            // TODO: Show shortcuts modal
+                            alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nH = Recenter\nEsc = Clear Selection');
+                        }}
+                        title="Help & Shortcuts"
+                    >
+                        ?
+                    </button>
+                </div>
+
+                {/* Context Buffer - Fixed at bottom */}
+                {contextBuffer.length > 0 && (
+                    <div className="pointer-events-auto w-full bg-white border-t-2 border-black py-2 px-4">
                         <div className="flex items-center gap-2 overflow-x-auto px-2 pb-1 scrollbar-thin scrollbar-thumb-black">
                             <span className="text-[9px] font-black uppercase tracking-wider shrink-0 text-neutral-600">CONTEXT:</span>
                             {contextBuffer.map(item => {
@@ -247,65 +330,8 @@ export const InfiniteCanvas = () => {
                                 Clear
                             </button>
                         </div>
-                    )}
-
-                    {/* Toolbar Buttons Row */}
-                    <div className="flex items-center justify-center gap-1.5 py-0.5">
-                        <button
-                            className="px-5 py-2 hover:bg-neutral-100 rounded-none border border-transparent hover:border-black"
-                            onClick={() => setOffset({ x: 0, y: 0 })}
-                            title="Recenter (H)"
-                        >
-                            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-                            </svg>
-                        </button>
-                        <button
-                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
-                            onClick={() => {
-                                const newNode = addNode('chat', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2);
-                                if (contextBuffer.length > 0) {
-                                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
-                                    // Pass context directly to input box via initialPrompt
-                                    setTimeout(() => {
-                                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
-                                            ...n,
-                                            initialPrompt: `Context:\n${contextText}\n\nMy Question: `
-                                        } : n));
-                                        setContextBuffer([]);
-                                    }, 100);
-                                }
-                            }}
-                            title="New Chat (C)"
-                        >
-                            CHAT
-                        </button>
-                        <button
-                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
-                            onClick={() => addNode('note', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2)}
-                            title="New Note (N)"
-                        >
-                            NOTE
-                        </button>
-                        <button
-                            className="px-5 py-2.5 text-xs font-black uppercase hover:bg-black hover:text-white border-2 border-black rounded-none"
-                            onClick={() => addNode('drawing', -offset.x + window.innerWidth / 2, -offset.y + window.innerHeight / 2)}
-                            title="New Drawing (D)"
-                        >
-                            DRAW
-                        </button>
-                        <button
-                            className="w-8 h-8 flex items-center justify-center hover:bg-neutral-100 rounded-full border border-transparent hover:border-black font-bold text-sm"
-                            onClick={() => {
-                                // TODO: Show shortcuts modal
-                                alert('Shortcuts:\nC = New Chat\nN = New Note\nD = New Drawing\nH = Recenter\nEsc = Clear Selection');
-                            }}
-                            title="Help & Shortcuts"
-                        >
-                            ?
-                        </button>
                     </div>
-                </div>
+                )}
             </div>
 
 
@@ -342,11 +368,11 @@ export const InfiniteCanvas = () => {
                     x={globalSelection.x}
                     y={globalSelection.y}
                     onExpand={() => {
-                        handleBranch(globalSelection.nodeId, globalSelection.text, 'expand', undefined, true);
+                        handleBranch(globalSelection.nodeId, globalSelection.text, 'expand', globalSelection.x, globalSelection.y, undefined, true);
                         setGlobalSelection(null);
                     }}
                     onCustomAsk={(prompt: string) => {
-                        handleBranch(globalSelection.nodeId, globalSelection.text, 'custom', prompt, true);
+                        handleBranch(globalSelection.nodeId, globalSelection.text, 'custom', globalSelection.x, globalSelection.y, prompt, true);
                         setGlobalSelection(null);
                     }}
                     onAddToContext={() => {
@@ -392,7 +418,6 @@ export const InfiniteCanvas = () => {
                                 strokeWidth="2"
                                 strokeDasharray={to.type === 'chat' ? 'none' : '4,4'}
                                 markerEnd="url(#arrow)"
-                                className="transition-all duration-300"
                                 style={{ opacity: activeContextId === from.id ? 1 : 0.2 }}
                             />
                         );
@@ -415,7 +440,7 @@ export const InfiniteCanvas = () => {
                             isSelected={isSelected}
                             selectedNodesContext={nodes.filter(n => selectedNodeIds.includes(n.id) && n.id !== node.id)}
                             onAddToContext={(text) => addToContext(text, node.id)}
-                            onBranch={(selection, type, customPrompt) => handleBranch(node.id, selection, type, customPrompt)}
+                            onBranch={(selection, type, customPrompt) => handleBranch(node.id, selection, type, 0, 0, customPrompt)}
                             setGlobalSelection={(sel) => setGlobalSelection(sel ? { ...sel, nodeId: node.id } : null)}
 
                             onMouseDown={() => bringToFront(node.id)}

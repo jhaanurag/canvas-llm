@@ -22,7 +22,7 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
     return (
         <div
             data-selection-menu="true"
-            className="fixed z-[9999] bg-white border-2 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] px-1.5 py-1 flex gap-1.5 items-center"
+            className="fixed z-[9999] bg-white border-2 border-black px-1.5 py-1 flex gap-1.5 items-center"
             style={{ left: x, top: y }}
         >
             {!isCustom ? (
@@ -31,6 +31,7 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                         size="sm"
                         variant="ghost"
                         className="h-8 px-4 text-[11px] font-black border-r border-black rounded-none hover:bg-black hover:text-white uppercase"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={onExpand}
                     >
                         <Search size={14} className="mr-2" />
@@ -39,16 +40,8 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                     <Button
                         size="sm"
                         variant="ghost"
-                        className="h-8 px-4 text-[11px] font-black border-r border-black rounded-none hover:bg-black hover:text-white uppercase"
-                        onClick={() => setIsCustom(true)}
-                    >
-                        <HelpCircle size={14} className="mr-2" />
-                        ASK
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="ghost"
                         className="h-8 px-3 text-[11px] font-black rounded-none hover:bg-black hover:text-white"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={onAddToContext}
                     >
                         <Plus size={18} />
@@ -57,6 +50,7 @@ export const SelectionMenu = ({ x, y, onExpand, onCustomAsk, onAddToContext, onC
                         size="sm"
                         variant="ghost"
                         className="h-8 px-2 text-[11px] font-black rounded-none hover:bg-red-500 hover:text-white text-neutral-400"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={onClose}
                     >
                         <X size={18} />

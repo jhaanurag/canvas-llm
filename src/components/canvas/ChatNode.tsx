@@ -47,6 +47,13 @@ export const ChatNode = ({
     selectedNodesContext = []
 }: ChatNodeProps) => {
     const [input, setInput] = useState(node.initialPrompt || '');
+
+    // Sync input with initialPrompt when it arrives (since it's set via setTimeout)
+    useEffect(() => {
+        if (node.initialPrompt && input === '' && node.messages.length === 0) {
+            setInput(node.initialPrompt);
+        }
+    }, [node.initialPrompt]);
     const [isDragging, setIsDragging] = useState(false);
     const [showNotes, setShowNotes] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -63,6 +70,7 @@ export const ChatNode = ({
 
 
     const scrollRef = useRef<HTMLDivElement>(null);
+    const isActive = isHovered || isDragging || isSelected || input || attachedFiles.length > 0;
 
     useEffect(() => {
         if (scrollRef.current) {
@@ -103,11 +111,10 @@ export const ChatNode = ({
     }, [isDragging, dragStart, updatePos]);
 
     useEffect(() => {
-        if (node.initialPrompt && node.messages.length === 0) {
+        if (node.autoSend && node.initialPrompt && node.messages.length === 0) {
             sendMessage(node.initialPrompt);
         }
-    }, [node.initialPrompt]);
-
+    }, [node.initialPrompt, node.autoSend]);
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
@@ -187,7 +194,6 @@ export const ChatNode = ({
         <div
             className={clsx(
                 "absolute pointer-events-auto",
-                !isDragging && "transition-all duration-200",
                 activeContextId === node.id ? "scale-[1.02]" : "",
                 isSelected ? "ring-2 ring-blue-500" : "",
                 isDragging && "select-none cursor-grabbing"
@@ -212,7 +218,7 @@ export const ChatNode = ({
             <Card
                 className={clsx(
                     "flex flex-col h-full border-2 rounded-none overflow-hidden",
-                    (isHovered || isDragging || isSelected) ? "border-black bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]" : "border-transparent bg-transparent shadow-none"
+                    (isHovered || isDragging || isSelected) ? "border-black bg-white" : "border-transparent bg-transparent"
                 )}
                 style={{ padding: 0, gap: 0 }}
             >
@@ -263,7 +269,7 @@ export const ChatNode = ({
                             className="h-8 w-8 rounded-none p-0 hover:bg-blue-100"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                const allText = node.messages.map(m => `${m.role}: ${m.text}`).join('\n\n');
+                                const allText = node.messages.map((m: Message) => `${m.role}: ${m.text}`).join('\n\n');
                                 onAddToContext(allText, node.id);
                             }} title="Add chat to context"
                         >
@@ -317,7 +323,7 @@ export const ChatNode = ({
                     ) : (
                         <div className="flex-1 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-thin scrollbar-thumb-black scrollbar-track-transparent">
                             <div className="px-5 py-3 space-y-3">
-                                {node.messages.map((msg) => (
+                                {node.messages.map((msg: Message) => (
                                     <div
                                         key={msg.id}
                                         className={clsx(
@@ -327,14 +333,14 @@ export const ChatNode = ({
                                     >
                                         <div
                                             className={clsx(
-                                                "px-4 py-2 text-xs border-2 border-black font-semibold leading-tight rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] break-words overflow-wrap-anywhere",
+                                                "px-4 py-2 text-xs border-2 border-black font-semibold leading-tight rounded-none break-words overflow-wrap-anywhere",
                                                 msg.role === 'user' ? "bg-black text-white" : "bg-white",
                                             )}
                                             style={{ wordWrap: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}
                                         >
                                             {msg.attachments && msg.attachments.length > 0 && (
                                                 <div className="flex flex-col gap-2 mb-2">
-                                                    {msg.attachments.map((file, idx) => (
+                                                    {msg.attachments.map((file: any, idx: number) => (
                                                         file.mimeType.startsWith('image/') ? (
                                                             <img
                                                                 key={idx}
@@ -361,14 +367,18 @@ export const ChatNode = ({
                 </div>
 
                 <div className={clsx(
-                    "px-5 py-3 border-t-2 border-black flex gap-3 shrink-0 bg-neutral-100",
-                    (isHovered || isDragging || input || attachedFiles.length > 0) ? "opacity-100" : "opacity-0"
+                    "px-5 py-3 border-t-2 flex gap-3 shrink-0 bg-transparent",
+                    isActive ? "border-black opacity-100" : "border-transparent opacity-40"
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
                     <Button
                         size="icon"
                         variant="outline"
-                        className="border-2 border-black h-12 w-12 rounded-none hover:bg-black hover:text-white p-0"
+                        className={clsx(
+                            "border-2 h-12 w-12 rounded-none hover:bg-black hover:text-white p-0 bg-transparent",
+                            isActive ? "border-black" : "border-transparent"
+                        )}
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => fileInputRef.current?.click()}
                     >
                         <Paperclip size={20} />
@@ -379,12 +389,18 @@ export const ChatNode = ({
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
                         placeholder="Ask AI..."
-                        className="flex-1 border-2 border-black focus-visible:ring-0 text-sm h-12 rounded-none bg-white font-semibold"
+                        className={clsx(
+                            "flex-1 border-2 focus-visible:ring-0 text-sm h-12 rounded-none bg-transparent font-semibold",
+                            isActive ? "border-black" : "border-transparent"
+                        )}
                     />
                     <Button
                         onClick={() => sendMessage()}
                         variant="outline"
-                        className="border-2 border-black h-12 px-5 hover:bg-black hover:text-white rounded-none"
+                        className={clsx(
+                            "border-2 h-12 px-5 hover:bg-black hover:text-white rounded-none bg-transparent",
+                            isActive ? "border-black" : "border-transparent"
+                        )}
                     >
                         <Send size={20} />
                     </Button>

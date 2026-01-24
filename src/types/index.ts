@@ -23,6 +23,7 @@ export type Node = {
     content?: string; // For notes
     initialPrompt?: string;
     systemPrompt?: string;
+    autoSend?: boolean;
 };
 
 export type Connection = {
