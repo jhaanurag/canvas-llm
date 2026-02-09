@@ -52,6 +52,12 @@ export const ChatNode = ({
     useEffect(() => {
         if (node.initialPrompt && input === '' && node.messages.length === 0) {
             setInput(node.initialPrompt);
+            setTimeout(() => {
+                if (inputRef.current) {
+                    inputRef.current.focus();
+                    inputRef.current.setSelectionRange(0, 0);
+                }
+            }, 10);
         }
     }, [node.initialPrompt]);
     const [isDragging, setIsDragging] = useState(false);
@@ -59,13 +65,19 @@ export const ChatNode = ({
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [didDrag, setDidDrag] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
-    const [attachedFiles, setAttachedFiles] = useState<{ data: string; mimeType: string; name: string }[]>([]);
+    const [attachedFiles, setAttachedFiles] = useState<{ data: string; mimeType: string; name: string }[]>(node.initialAttachments || []);
+
+    useEffect(() => {
+        if (node.initialAttachments && attachedFiles.length === 0 && node.messages.length === 0) {
+            setAttachedFiles(node.initialAttachments);
+        }
+    }, [node.initialAttachments]);
     const [showSystemPrompt, setShowSystemPrompt] = useState(false);
     const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
 
 
 
@@ -383,16 +395,25 @@ export const ChatNode = ({
                     >
                         <Paperclip size={20} />
                     </Button>
-                    <Input
+                    <Textarea
                         ref={inputRef}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                sendMessage();
+                            }
+                        }}
                         placeholder="Ask AI..."
                         className={clsx(
-                            "flex-1 border-2 focus-visible:ring-0 text-sm h-12 rounded-none bg-transparent font-semibold",
+                            "flex-1 border-2 focus-visible:ring-0 text-sm min-h-[3rem] max-h-[150px] rounded-none bg-transparent font-semibold resize-none p-3",
                             isActive ? "border-black" : "border-transparent"
                         )}
+                        style={{
+                            height: input ? `${Math.min(input.split('\n').length * 20 + 24, 150)}px` : undefined
+                        }}
+                        autoFocus
                     />
                     <Button
                         onClick={() => sendMessage()}

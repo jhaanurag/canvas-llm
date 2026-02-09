@@ -15,9 +15,10 @@ interface DrawingNodeProps {
     onSelect: () => void;
     onMouseDown: () => void;
     isSelected: boolean;
+    onAddToContext?: (text: string, sourceNodeId: string, image?: string) => void;
 }
 
-export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected }: DrawingNodeProps) => {
+export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, onAddToContext }: DrawingNodeProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -53,8 +54,11 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         const rect = canvas.getBoundingClientRect();
-        ctx.strokeStyle = tool === 'pen' ? '#000' : '#fff';
+        
+        ctx.globalCompositeOperation = tool === 'eraser' ? 'destination-out' : 'source-over';
+        ctx.strokeStyle = '#000';
         ctx.lineWidth = tool === 'pen' ? 2 : 20;
+        
         ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
         ctx.stroke();
     };
@@ -125,6 +129,26 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
                             <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" onClick={() => setTool('eraser')}>
                                 <Eraser size={10} className={tool === 'eraser' ? 'text-blue-600' : ''} />
                             </Button>
+                            {onAddToContext && (
+                                <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" title="Add to Context" onClick={() => {
+                                    const canvas = canvasRef.current;
+                                    if(canvas) {
+                                         // Create a temporary canvas to flatten transparency
+                                         const tempCanvas = document.createElement('canvas');
+                                         tempCanvas.width = canvas.width;
+                                         tempCanvas.height = canvas.height;
+                                         const ctx = tempCanvas.getContext('2d');
+                                         if (ctx) {
+                                             ctx.fillStyle = '#FFFFFF';
+                                             ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                                             ctx.drawImage(canvas, 0, 0);
+                                             onAddToContext("Drawing", node.id, tempCanvas.toDataURL('image/png'));
+                                         }
+                                    }
+                                }}>
+                                    <CheckSquare size={10} />
+                                </Button>
+                            )}
                         </div>
                     </div>
                     <X size={14} className="cursor-pointer" onClick={onDelete} />
@@ -137,7 +161,10 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
                     onMouseMove={draw}
                     onMouseUp={stopDrawing}
                     onMouseLeave={stopDrawing}
-                    className="cursor-crosshair bg-white"
+                    className={clsx(
+                        "cursor-crosshair",
+                        (isHovered || isDragging || isSelected) ? "bg-white" : "bg-transparent"
+                    )}
                 />
             </div>
         </div>

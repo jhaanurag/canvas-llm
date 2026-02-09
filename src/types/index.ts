@@ -24,6 +24,7 @@ export type Node = {
     initialPrompt?: string;
     systemPrompt?: string;
     autoSend?: boolean;
+    initialAttachments?: { data: string; mimeType: string; name: string }[];
 };
 
 export type Connection = {
@@ -37,6 +38,7 @@ export type ContextItem = {
     id: string;
     text: string;
     sourceNodeId: string;
+    image?: string;
 };
 
 export type CanvasState = {

@@ -143,8 +143,8 @@ export const InfiniteCanvas = () => {
         );
     };
 
-    const addToContext = (text: string, sourceNodeId: string) => {
-        setContextBuffer(prev => [...prev, { id: uuidv4(), text, sourceNodeId }]);
+    const addToContext = (text: string, sourceNodeId: string, image?: string) => {
+        setContextBuffer(prev => [...prev, { id: uuidv4(), text, sourceNodeId, image }]);
     };
 
     const removeFromContext = useCallback((id: string) => {
@@ -258,11 +258,20 @@ export const InfiniteCanvas = () => {
                                 const newNode = addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
                                 if (contextBuffer.length > 0) {
                                     const contextText = contextBuffer.map(i => i.text).join('\n\n');
+                                    const images = contextBuffer
+                                        .filter(i => i.image)
+                                        .map(i => ({
+                                            data: i.image!,
+                                            mimeType: 'image/png',
+                                            name: 'drawing.png'
+                                        }));
+
                                     // Pass context directly to input box via initialPrompt
                                     setTimeout(() => {
                                         setNodes(prev => prev.map(n => n.id === newNode.id ? {
                                             ...n,
-                                            initialPrompt: `Context:\n${contextText}\n\n\nMy Question: `
+                                            initialPrompt: `\n\nContext:\n${contextText}`,
+                                            initialAttachments: images
                                         } : n));
                                         setContextBuffer([]);
                                     }, 100);
@@ -469,6 +478,7 @@ export const InfiniteCanvas = () => {
                             onSelect={() => toggleNodeSelection(node.id)}
                             isSelected={isSelected}
                             onMouseDown={() => bringToFront(node.id)}
+                            onAddToContext={addToContext}
                         />
                     );
                     return null;
