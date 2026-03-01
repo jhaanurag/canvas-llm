@@ -1,41 +1,31 @@
-'use client';
-
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { JetBrains_Mono, Sora } from "next/font/google";
 import "./globals.css";
-import { useEffect } from "react";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const brandSans = Sora({
+  variable: "--font-brand-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const brandMono = JetBrains_Mono({
+  variable: "--font-brand-mono",
   subsets: ["latin"],
 });
+
+export const metadata: Metadata = {
+  title: "Canvas Atlas",
+  description: "A visual workspace for branching AI thinking.",
+};
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  useEffect(() => {
-    // Disabled React Scan for better performance
-    // if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
-    //   import('react-scan').then(({ scan }) => {
-    //     scan({
-    //       enabled: true,
-    //       log: false,
-    //     });
-    //   });
-    // }
-  }, []);
-
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${brandSans.variable} ${brandMono.variable} antialiased`}
       >
         {children}
       </body>

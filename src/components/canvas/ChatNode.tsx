@@ -5,12 +5,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Node, Message } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings, Check } from 'lucide-react';
+import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
@@ -20,32 +18,54 @@ interface ChatNodeProps {
     updatePos: (x: number, y: number) => void;
     updateMessages: (messages: Message[]) => void;
     updateContent: (content: string) => void;
-    onBranch: (selection: string, type: 'expand' | 'custom', prompt?: string) => void;
+    updateTitle: (title: string) => void;
+    updateSystemPrompt: (prompt: string) => void;
     onDelete: () => void;
     onSelect: () => void;
     onMouseDown: () => void;
     onAddToContext: (text: string, nodeId: string) => void;
     setGlobalSelection: (selection: { text: string; x: number; y: number } | null) => void;
     isSelected: boolean;
+    isBeautifulUI?: boolean;
+    sharpEdges?: boolean;
+    accentColor?: string;
     selectedNodesContext?: Node[];
 }
 
-export const ChatNode = ({
+const ChatNodeComponent = ({
     node,
     activeContextId,
     setActiveContextId,
     updatePos,
     updateMessages,
     updateContent,
-    onBranch,
+    updateTitle,
+    updateSystemPrompt,
     onDelete,
     onSelect,
     onMouseDown,
     onAddToContext,
     setGlobalSelection,
     isSelected,
+    isBeautifulUI = false,
+    sharpEdges = false,
+    accentColor = '#0f766e',
     selectedNodesContext = []
 }: ChatNodeProps) => {
+    const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
+    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
+    const headerButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[8px]';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
+    const bubbleRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[12px]';
+
+    const cssVars = {
+        '--node-accent': accentColor,
+        '--node-accent-15': `${accentColor}26`,
+        '--node-accent-70': `${accentColor}b3`,
+        '--node-accent-dark': accentColor, // optionally darken
+    } as React.CSSProperties;
+
     const [input, setInput] = useState(node.initialPrompt || '');
 
     // Sync input with initialPrompt when it arrives (since it's set via setTimeout)
@@ -61,9 +81,8 @@ export const ChatNode = ({
         }
     }, [node.initialPrompt]);
     const [isDragging, setIsDragging] = useState(false);
-    const [showNotes, setShowNotes] = useState(false);
+    const [activePanel, setActivePanel] = useState<'chat' | 'system' | 'notes'>('chat');
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-    const [didDrag, setDidDrag] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState<{ data: string; mimeType: string; name: string }[]>(node.initialAttachments || []);
 
@@ -72,7 +91,6 @@ export const ChatNode = ({
             setAttachedFiles(node.initialAttachments);
         }
     }, [node.initialAttachments]);
-    const [showSystemPrompt, setShowSystemPrompt] = useState(false);
     const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
@@ -81,44 +99,50 @@ export const ChatNode = ({
 
 
 
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const isActive = isHovered || isDragging || isSelected || input || attachedFiles.length > 0;
+    const messagesViewportRef = useRef<HTMLDivElement>(null);
+    const showChrome = isHovered || isDragging || isEditingTitle;
+    const isActive = showChrome || input || attachedFiles.length > 0;
 
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
+        const viewport = messagesViewportRef.current;
+        if (!viewport) return;
+        requestAnimationFrame(() => {
+            viewport.scrollTop = viewport.scrollHeight;
+        });
     }, [node.messages]);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
         onMouseDown();
-        if ((e.target as HTMLElement).closest('.drag-handle')) {
+        if ((e.target as HTMLElement).closest('.drag-handle') && !(e.target as HTMLElement).closest('[data-no-drag]')) {
+            e.preventDefault();
+            e.currentTarget.setPointerCapture(e.pointerId);
             setIsDragging(true);
             setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
-            setDidDrag(false);
             e.stopPropagation();
         } else {
-            // Reset didDrag when clicking in the node content area
-            setDidDrag(false);
+            onSelect();
+            setGlobalSelection(null);
+            e.stopPropagation();
         }
     };
 
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
+        const handlePointerMove = (e: PointerEvent) => {
             if (isDragging) {
                 updatePos(e.clientX - dragStart.x, e.clientY - dragStart.y);
-                setDidDrag(true);
             }
         };
-        const handleMouseUp = () => setIsDragging(false);
+        const handlePointerUp = () => setIsDragging(false);
 
         if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('pointermove', handlePointerMove);
+            window.addEventListener('pointerup', handlePointerUp);
+            window.addEventListener('pointercancel', handlePointerUp);
         }
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
         };
     }, [isDragging, dragStart, updatePos]);
 
@@ -148,8 +172,9 @@ export const ChatNode = ({
         if (!text.trim() && attachedFiles.length === 0) return;
 
         // Aggregating context from selected nodes
-        if (selectedNodesContext.length > 0) {
-            const contexts = selectedNodesContext.map(n => {
+        const extraContextNodes = selectedNodesContext.filter((n) => n.id !== node.id);
+        if (extraContextNodes.length > 0) {
+            const contexts = extraContextNodes.map(n => {
                 const lastMsgs = n.messages.slice(-3).map(m => `[${m.role}]: ${m.text}`).join('\n');
                 return `### Context from ${n.type} node (${n.id})\n${n.content ? `Notes: ${n.content}\n` : ''}${lastMsgs}`;
             }).join('\n\n');
@@ -198,16 +223,14 @@ export const ChatNode = ({
         }
     };
 
-    const onMouseUp = (e: React.MouseEvent) => {
-        // Selection handled globally in InfiniteCanvas
-    };
-
     return (
         <div
             className={clsx(
                 "absolute pointer-events-auto",
-                activeContextId === node.id ? "scale-[1.02]" : "",
-                isSelected ? "ring-2 ring-blue-500" : "",
+                outerRadiusClass,
+                isBeautifulUI && motionClass,
+                isBeautifulUI && activeContextId === node.id ? "scale-[1.01]" : "",
+                isSelected && showChrome ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -215,9 +238,10 @@ export const ChatNode = ({
                 top: node.y,
                 width: node.width,
                 height: node.height,
-                zIndex: isDragging ? 100 : 10
+                zIndex: isDragging ? 100 : 10,
+                ...cssVars,
+                ...(isSelected && showChrome ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
-            onMouseUp={onMouseUp}
             onMouseEnter={() => {
                 setIsHovered(true);
                 if (node.parentId) setActiveContextId(node.parentId);
@@ -226,45 +250,59 @@ export const ChatNode = ({
                 setIsHovered(false);
                 setActiveContextId(null);
             }}
+            onPointerDown={handlePointerDown}
         >
             <Card
                 className={clsx(
-                    "flex flex-col h-full border-2 rounded-none overflow-hidden",
-                    (isHovered || isDragging || isSelected) ? "border-black bg-white" : "border-transparent bg-transparent"
+                    "flex h-full flex-col overflow-hidden border",
+                    shellRadiusClass,
+                    isBeautifulUI && motionClass,
+                    showChrome
+                        ? isBeautifulUI
+                            ? "border-[#1b2b33]/35 bg-[#fff8ed] shadow-[0_16px_36px_rgba(33,36,41,0.18)]"
+                            : "border-[#1b2b33]/35 bg-[#fff8ed]"
+                        : "border-transparent bg-transparent"
                 )}
                 style={{ padding: 0, gap: 0 }}
             >
                 <div
                     className={clsx(
-                        "drag-handle flex items-center justify-between px-4 py-2 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0",
-                        (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
+                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#edf5f8]/90 px-3.5 active:cursor-grabbing",
+                        isBeautifulUI && motionClass,
+                        showChrome ? "opacity-100" : "opacity-0"
                     )}
-                    onMouseDown={handleMouseDown}
+                    style={{ touchAction: 'none' }}
                 >
                     <div className="flex items-center gap-2">
-                        <GripVertical size={14} />
+                        <GripVertical size={14} className="text-[#1b2b33]/70" />
                         {isEditingTitle ? (
                             <input
+                                data-no-drag
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 onBlur={() => {
                                     setIsEditingTitle(false);
-                                    updateContent(title);
+                                    updateTitle(title);
                                 }}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         setIsEditingTitle(false);
-                                        updateContent(title);
+                                        updateTitle(title);
                                     }
                                 }}
-                                className="text-[9px] font-black uppercase tracking-tight bg-transparent border-none outline-none w-20"
+                                className="w-24 border-none bg-transparent text-[10px] font-semibold uppercase tracking-[0.12em] text-[#22363f] outline-none"
                                 autoFocus
                                 onClick={(e) => e.stopPropagation()}
                             />
                         ) : (
                             <span
-                                className="text-[9px] font-black uppercase tracking-tight cursor-pointer hover:text-blue-600"
+                                data-no-drag
+                                className={clsx(
+                                    "cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-[#22363f] hover:text-[color:var(--node-accent)]",
+                                    isBeautifulUI && motionClass
+                                )}
+                                style={{ color: isEditingTitle ? accentColor : undefined }}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     setIsEditingTitle(true);
@@ -274,67 +312,92 @@ export const ChatNode = ({
                             </span>
                         )}
                     </div>
-                    <div className="flex gap-2 items-center">
+                    <div className="flex items-center gap-1.5">
                         <Button
+                            data-no-drag
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 rounded-none p-0 hover:bg-blue-100"
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const allText = node.messages.map((m: Message) => `${m.role}: ${m.text}`).join('\n\n');
                                 onAddToContext(allText, node.id);
                             }} title="Add chat to context"
                         >
-                            <Plus size={18} className={isSelected ? 'text-blue-600' : ''} />
+                            <Plus size={16} style={isSelected ? { color: accentColor } : undefined} />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none p-0" onClick={(e) => { e.stopPropagation(); setShowSystemPrompt(!showSystemPrompt); }}>
-                            <Settings size={18} className={showSystemPrompt ? 'text-blue-600' : ''} />
+                        <Button
+                            data-no-drag
+                            size="icon"
+                            variant="ghost"
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActivePanel((prev) => (prev === 'system' ? 'chat' : 'system'));
+                            }}
+                        >
+                            <Settings size={16} style={activePanel === 'system' ? { color: accentColor } : undefined} />
                         </Button>
-                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none p-0" onClick={(e) => { e.stopPropagation(); setShowNotes(!showNotes); }}>
-                            <FileText size={18} />
+                        <Button
+                            data-no-drag
+                            size="icon"
+                            variant="ghost"
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActivePanel((prev) => (prev === 'notes' ? 'chat' : 'notes'));
+                            }}
+                        >
+                            <FileText size={16} style={activePanel === 'notes' ? { color: accentColor } : undefined} />
                         </Button>
-                        <X size={20} className="cursor-pointer" onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                        <X data-no-drag size={16} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {node.sourceSelection && (
                         <div className={clsx(
-                            "p-2 border-b border-black text-[10px] italic overflow-hidden whitespace-nowrap text-ellipsis shrink-0 font-medium",
+                            "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap border-b border-[#1b2b33]/20 p-2 text-[10px] italic font-medium",
+                            isBeautifulUI && motionClass,
                             (isHovered || isDragging) ? "opacity-100" : "opacity-30",
-                            activeContextId === node.parentId ? "bg-black text-white" : "bg-neutral-50"
+                            activeContextId === node.parentId ? "text-[#f8fffd]" : "bg-[#f4eee0] text-[#1b2b33]"
                         )}>
-                            Origin: "{node.sourceSelection}"
+                            Origin: &quot;{node.sourceSelection}&quot;
                         </div>
                     )}
 
-                    {showSystemPrompt ? (
-                        <div className="flex-1 flex flex-col px-5 py-3 bg-blue-50 overflow-hidden border-b-2 border-black">
-                            <span className="text-[11px] font-black mb-1 uppercase tracking-tight">SYSTEM PROMPT</span>
+                    {activePanel === 'system' ? (
+                        <div className="flex flex-1 flex-col overflow-hidden border-b border-[#1b2b33]/20 bg-[#def3f2] px-4 py-3">
+                            <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">System Prompt</span>
                             <Textarea
-                                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-xs p-0 resize-none rounded-none"
+                                className="flex-1 resize-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
                                 value={systemPrompt}
                                 onChange={(e) => {
                                     const newPrompt = e.target.value;
                                     setSystemPrompt(newPrompt);
-                                    updateContent(newPrompt);
+                                    updateSystemPrompt(newPrompt);
                                 }}
                                 placeholder="Set the AI's behavior..."
                             />
                         </div>
-                    ) : showNotes ? (
-                        <div className="flex-1 flex flex-col px-5 py-3 bg-amber-50 overflow-hidden">
-                            <span className="text-[11px] font-black mb-1 uppercase tracking-tight">LOCAL NOTES</span>
+                    ) : activePanel === 'notes' ? (
+                        <div className="flex flex-1 flex-col overflow-hidden bg-[#fff0cf] px-4 py-3">
+                            <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">Local Notes</span>
                             <Textarea
-                                className="flex-1 bg-transparent border-none focus-visible:ring-0 text-xs p-0 resize-none rounded-none"
+                                className="flex-1 resize-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
                                 value={node.content}
                                 onChange={(e) => updateContent(e.target.value)}
                                 placeholder="Notes..."
                             />
                         </div>
                     ) : (
-                        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-transparent scrollbar-thin scrollbar-thumb-black scrollbar-track-transparent">
-                            <div className="px-5 py-3 space-y-3">
+                        <div
+                            ref={messagesViewportRef}
+                            data-no-pan
+                            className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent"
+                            onWheel={(e) => e.stopPropagation()}
+                        >
+                            <div className="space-y-3 px-4 py-3">
                                 {node.messages.map((msg: Message) => (
                                     <div
                                         key={msg.id}
@@ -345,23 +408,32 @@ export const ChatNode = ({
                                     >
                                         <div
                                             className={clsx(
-                                                "px-4 py-2 text-xs border-2 border-black font-semibold leading-tight rounded-none break-words overflow-wrap-anywhere",
-                                                msg.role === 'user' ? "bg-black text-white" : "bg-white",
+                                                "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
+                                                bubbleRadiusClass,
+                                                msg.role === 'user'
+                                                    ? "text-[#f8fffd]"
+                                                    : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]",
+                                                isBeautifulUI && "shadow-[0_2px_7px_rgba(33,36,41,0.09)]"
                                             )}
-                                            style={{ wordWrap: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}
+                                            style={{
+                                                wordWrap: 'break-word',
+                                                overflowWrap: 'break-word',
+                                                whiteSpace: 'pre-wrap',
+                                                ...(msg.role === 'user' ? { backgroundColor: accentColor, borderColor: accentColor } : {}),
+                                            }}
                                         >
                                             {msg.attachments && msg.attachments.length > 0 && (
                                                 <div className="flex flex-col gap-2 mb-2">
-                                                    {msg.attachments.map((file: any, idx: number) => (
+                                                    {msg.attachments.map((file, idx: number) => (
                                                         file.mimeType.startsWith('image/') ? (
                                                             <img
                                                                 key={idx}
                                                                 src={file.data}
                                                                 alt={file.name}
-                                                                className="max-w-full h-auto border border-white/20"
+                                                                className={clsx("h-auto max-w-full border border-[#1b2b33]/20", headerButtonRadiusClass)}
                                                             />
                                                         ) : (
-                                                            <div key={idx} className="text-[10px] bg-white/20 p-1 truncate">
+                                                            <div key={idx} className={clsx("truncate bg-[#f4eee0] p-1 text-[10px] text-[#1b2b33]", headerButtonRadiusClass)}>
                                                                 📎 {file.name}
                                                             </div>
                                                         )
@@ -372,31 +444,34 @@ export const ChatNode = ({
                                         </div>
                                     </div>
                                 ))}
-                                <div ref={scrollRef} />
                             </div>
                         </div>
                     )}
                 </div>
 
                 <div className={clsx(
-                    "px-5 py-3 border-t-2 flex gap-3 shrink-0 bg-transparent",
-                    isActive ? "border-black opacity-100" : "border-transparent opacity-40"
+                    "flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
+                    isBeautifulUI && motionClass,
+                    isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50"
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
                     <Button
                         size="icon"
                         variant="outline"
                         className={clsx(
-                            "border-2 h-12 w-12 rounded-none hover:bg-black hover:text-white p-0 bg-transparent",
-                            isActive ? "border-black" : "border-transparent"
+                            "h-10 w-10 border p-0 bg-transparent hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
+                            controlRadiusClass,
+                            isBeautifulUI && motionClass,
+                            isActive ? "border-[#1b2b33]/30" : "border-transparent"
                         )}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => fileInputRef.current?.click()}
                     >
-                        <Paperclip size={20} />
+                        <Paperclip size={18} />
                     </Button>
                     <Textarea
                         ref={inputRef}
+                        rows={1}
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={(e) => {
@@ -407,26 +482,44 @@ export const ChatNode = ({
                         }}
                         placeholder="Ask AI..."
                         className={clsx(
-                            "flex-1 border-2 focus-visible:ring-0 text-sm min-h-[3rem] max-h-[150px] rounded-none bg-transparent font-semibold resize-none p-3",
-                            isActive ? "border-black" : "border-transparent"
+                            "h-10 min-h-10 max-h-10 flex-1 resize-none border bg-[#fffdf7] px-3 py-2 text-sm leading-5 text-[#1b2b33] focus-visible:ring-2",
+                            controlRadiusClass,
+                            isBeautifulUI && motionClass,
+                            isActive ? "border-[#1b2b33]/28" : "border-transparent"
                         )}
-                        style={{
-                            height: input ? `${Math.min(input.split('\n').length * 20 + 24, 150)}px` : undefined
-                        }}
                         autoFocus
                     />
                     <Button
                         onClick={() => sendMessage()}
                         variant="outline"
                         className={clsx(
-                            "border-2 h-12 px-5 hover:bg-black hover:text-white rounded-none bg-transparent",
-                            isActive ? "border-black" : "border-transparent"
+                            "h-10 border bg-transparent px-4 hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
+                            controlRadiusClass,
+                            isBeautifulUI && motionClass,
+                            isActive ? "border-[#1b2b33]/30" : "border-transparent"
                         )}
                     >
-                        <Send size={20} />
+                        <Send size={18} />
                     </Button>
                 </div>
             </Card>
         </div>
     );
 };
+
+const sameSelectedContext = (prev: Node[] = [], next: Node[] = []) => {
+    if (prev.length !== next.length) return false;
+    for (let i = 0; i < prev.length; i += 1) {
+        if (prev[i] !== next[i]) return false;
+    }
+    return true;
+};
+
+export const ChatNode = React.memo(ChatNodeComponent, (prev, next) => (
+    prev.node === next.node &&
+    prev.activeContextId === next.activeContextId &&
+    prev.isSelected === next.isSelected &&
+    prev.isBeautifulUI === next.isBeautifulUI &&
+    prev.sharpEdges === next.sharpEdges &&
+    sameSelectedContext(prev.selectedNodesContext, next.selectedNodesContext)
+));

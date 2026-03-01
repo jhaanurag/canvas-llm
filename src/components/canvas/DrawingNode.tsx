@@ -3,8 +3,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Node } from '@/types';
-import { Card } from '@/components/ui/card';
-import { GripVertical, X, Eraser, Pencil, Square, CheckSquare } from 'lucide-react';
+import { GripVertical, X, Eraser, Pencil, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { clsx } from 'clsx';
 
@@ -15,16 +14,41 @@ interface DrawingNodeProps {
     onSelect: () => void;
     onMouseDown: () => void;
     isSelected: boolean;
+    isBeautifulUI?: boolean;
+    sharpEdges?: boolean;
+    accentColor?: string;
     onAddToContext?: (text: string, sourceNodeId: string, image?: string) => void;
 }
 
-export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, onAddToContext }: DrawingNodeProps) => {
+const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onAddToContext }: DrawingNodeProps) => {
+    const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isHovered, setIsHovered] = useState(false);
     const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+    const [hasStrokes, setHasStrokes] = useState(false);
+
+    const cssVars = {
+        '--node-accent': accentColor,
+        '--node-accent-15': `${accentColor}26`,
+        '--node-accent-70': `${accentColor}b3`,
+    } as React.CSSProperties;
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
+    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
+    const canvasRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-b-[18px]';
+
+    const detectCanvasInk = (canvas: HTMLCanvasElement) => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return false;
+        const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 3; i < data.length; i += 16) {
+            if (data[i] > 0) return true;
+        }
+        return false;
+    };
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -36,7 +60,12 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         ctx.lineWidth = 2;
     }, []);
 
-    const startDrawing = (e: React.MouseEvent) => {
+    const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
+        onMouseDown();
+        onSelect();
+        e.stopPropagation();
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
         setIsDrawing(true);
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -47,8 +76,9 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
     };
 
-    const draw = (e: React.MouseEvent) => {
+    const draw = (e: React.PointerEvent<HTMLCanvasElement>) => {
         if (!isDrawing) return;
+        e.stopPropagation();
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -63,32 +93,50 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         ctx.stroke();
     };
 
-    const stopDrawing = () => setIsDrawing(false);
-
-    const handleMouseDown = (e: React.MouseEvent) => {
-        onMouseDown();
-        if ((e.target as HTMLElement).closest('.drag-handle')) {
-            setIsDragging(true);
-            setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
+    const stopDrawing = (e?: React.PointerEvent<HTMLCanvasElement>) => {
+        if (e) {
             e.stopPropagation();
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            }
         }
+        const canvas = canvasRef.current;
+        if (canvas) {
+            setHasStrokes(detectCanvasInk(canvas));
+        }
+        setIsDrawing(false);
+    };
+
+    const handleDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+        if ((e.target as HTMLElement).closest('[data-no-drag]')) {
+            return;
+        }
+        onMouseDown();
+        onSelect();
+        e.preventDefault();
+        e.stopPropagation();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setIsDragging(true);
+        setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
     };
 
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
+        const handlePointerMove = (e: PointerEvent) => {
             if (isDragging) {
                 updatePos(e.clientX - dragStart.x, e.clientY - dragStart.y);
             }
         };
-        const handleMouseUp = () => setIsDragging(false);
+        const handlePointerUp = () => setIsDragging(false);
 
         if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
+            window.addEventListener('pointermove', handlePointerMove);
+            window.addEventListener('pointerup', handlePointerUp);
+            window.addEventListener('pointercancel', handlePointerUp);
         }
         return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
         };
     }, [isDragging, dragStart, updatePos]);
 
@@ -96,7 +144,9 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
         <div
             className={clsx(
                 "absolute pointer-events-auto",
-                isSelected ? "ring-4 ring-black" : "",
+                outerRadiusClass,
+                isBeautifulUI && motionClass,
+                isSelected ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -104,33 +154,43 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
                 top: node.y,
                 width: node.width,
                 height: node.height,
-                zIndex: isDragging ? 100 : 10
+                zIndex: isDragging ? 100 : 10,
+                ...cssVars,
+                ...(isSelected ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
             <div className={clsx(
-                "flex flex-col h-full border-2 rounded-none overflow-hidden",
-                (isHovered || isDragging || isSelected) ? "border-black bg-white" : "border-transparent bg-transparent"
+                "flex h-full flex-col overflow-hidden border",
+                shellRadiusClass,
+                isBeautifulUI && motionClass,
+                (isHovered || isDragging || isSelected)
+                    ? isBeautifulUI
+                        ? "border-[#1b2b33]/35 bg-[#fffaf2] shadow-[0_16px_36px_rgba(33,36,41,0.16)]"
+                        : "border-[#1b2b33]/35 bg-[#fffaf2]"
+                    : "border-transparent bg-transparent"
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex items-center justify-between p-1 bg-neutral-100 border-b-2 border-black cursor-grab active:cursor-grabbing shrink-0",
+                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#eef5f8]/90 px-2.5 active:cursor-grabbing",
+                        isBeautifulUI && motionClass,
                         (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
                     )}
-                    onMouseDown={handleMouseDown}
+                    onPointerDown={handleDragStart}
+                    style={{ touchAction: 'none' }}
                 >
                     <div className="flex items-center gap-1">
-                        <GripVertical size={14} />
-                        <div className="flex gap-0.5 overflow-hidden ml-1">
-                            <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" onClick={() => setTool('pen')}>
-                                <Pencil size={10} className={tool === 'pen' ? 'text-blue-600' : ''} />
+                        <GripVertical size={14} className="text-[#1b2b33]/70" />
+                        <div className="ml-1 flex gap-1 overflow-hidden">
+                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} onClick={() => setTool('pen')}>
+                                <Pencil size={12} style={tool === 'pen' ? { color: accentColor } : undefined} />
                             </Button>
-                            <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" onClick={() => setTool('eraser')}>
-                                <Eraser size={10} className={tool === 'eraser' ? 'text-blue-600' : ''} />
+                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} onClick={() => setTool('eraser')}>
+                                <Eraser size={12} style={tool === 'eraser' ? { color: accentColor } : undefined} />
                             </Button>
                             {onAddToContext && (
-                                <Button size="icon" variant="ghost" className="h-5 w-5 rounded-none p-0" title="Add to Context" onClick={() => {
+                                <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} title="Add to Context" onClick={() => {
                                     const canvas = canvasRef.current;
                                     if(canvas) {
                                          // Create a temporary canvas to flatten transparency
@@ -146,27 +206,41 @@ export const DrawingNode = ({ node, updatePos, onDelete, onSelect, onMouseDown, 
                                          }
                                     }
                                 }}>
-                                    <CheckSquare size={10} />
+                                    <CheckSquare size={12} />
                                 </Button>
                             )}
                         </div>
                     </div>
-                    <X size={14} className="cursor-pointer" onClick={onDelete} />
+                    <X data-no-drag size={14} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                 </div>
                 <canvas
                     ref={canvasRef}
                     width={node.width}
-                    height={node.height - 35}
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
+                    height={node.height - 40}
+                    onPointerDown={startDrawing}
+                    onPointerMove={draw}
+                    onPointerUp={stopDrawing}
+                    onPointerCancel={stopDrawing}
                     className={clsx(
-                        "cursor-crosshair",
-                        (isHovered || isDragging || isSelected) ? "bg-white" : "bg-transparent"
+                        "block cursor-crosshair",
+                        canvasRadiusClass,
+                        isBeautifulUI && motionClass,
+                        (isHovered || isDragging || isSelected)
+                            ? "bg-white/95"
+                            : hasStrokes
+                                ? "bg-transparent"
+                                : "bg-white/40"
                     )}
+                    style={{ touchAction: 'none' }}
                 />
             </div>
         </div>
     );
 };
+
+export const DrawingNode = React.memo(DrawingNodeComponent, (prev, next) => (
+    prev.node === next.node &&
+    prev.isSelected === next.isSelected &&
+    prev.isBeautifulUI === next.isBeautifulUI &&
+    prev.sharpEdges === next.sharpEdges
+));
