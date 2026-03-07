@@ -80,6 +80,7 @@ export const InfiniteCanvas = () => {
     const isSpacePanningRef = useRef(false);
     const saveTimerRef = useRef<number | null>(null);
     const lastSavedSnapshotRef = useRef('');
+    const spawnIndexRef = useRef(0);
 
     useEffect(() => {
         offsetRef.current = offset;
@@ -583,6 +584,22 @@ export const InfiniteCanvas = () => {
         return newNode;
     }, [screenToWorld, snapToGrid, gridResolution, clampNodePosition]);
 
+    const getNextSpawnScreenPoint = useCallback((type: Node['type']) => {
+        const currentOffset = offsetRef.current;
+        const stepX = 460;
+        const stepY = 320;
+        const idx = spawnIndexRef.current;
+        spawnIndexRef.current += 1;
+        const col = idx % 3;
+        const row = Math.floor(idx / 3) % 3;
+        const baseX = currentOffset.x + window.innerWidth / 2 - (type === 'note' ? 125 : 200);
+        const baseY = currentOffset.y + window.innerHeight / 3 - (type === 'note' ? 100 : 180);
+        return {
+            x: baseX + col * stepX,
+            y: baseY + row * stepY,
+        };
+    }, []);
+
     const updateNodePos = useCallback((id: string, x: number, y: number) => {
         const nextX = snapToGrid ? Math.round(x / gridResolution) * gridResolution : x;
         const nextY = snapToGrid ? Math.round(y / gridResolution) * gridResolution : y;
@@ -646,7 +663,9 @@ export const InfiniteCanvas = () => {
     }, []);
 
     const addToContext = useCallback((text: string, sourceNodeId: string, image?: string) => {
-        setContextBuffer(prev => [...prev, { id: uuidv4(), text, sourceNodeId, image }]);
+        const normalizedText = text.trim();
+        if (!normalizedText && !image) return;
+        setContextBuffer(prev => [...prev, { id: uuidv4(), text: normalizedText || 'Context', sourceNodeId, image }]);
         showToast(image ? 'Image added to context' : 'Added to context');
     }, [showToast]);
 
@@ -714,11 +733,12 @@ export const InfiniteCanvas = () => {
         if (!canvasStateLoaded) return;
         if (nodes.length === 0) {
             const timer = window.setTimeout(() => {
-                addNode('chat', window.innerWidth / 2 - 200, window.innerHeight / 2 - 250);
+                const point = getNextSpawnScreenPoint('chat');
+                addNode('chat', point.x, point.y);
             }, 0);
             return () => window.clearTimeout(timer);
         }
-    }, [addNode, canvasStateLoaded, nodes.length]);
+    }, [addNode, canvasStateLoaded, getNextSpawnScreenPoint, nodes.length]);
 
     useEffect(() => {
         const isTextEntryTarget = (target: EventTarget | null) =>
@@ -735,18 +755,20 @@ export const InfiniteCanvas = () => {
 
             if (isTextEntryTarget(e.target)) return;
             if (e.metaKey || e.ctrlKey || e.altKey) return;
-            const currentOffset = offsetRef.current;
 
             if (e.code === 'Digit1' || e.code === 'Numpad1') {
-                addNode('chat', currentOffset.x + window.innerWidth / 2, currentOffset.y + window.innerHeight / 3);
+                const point = getNextSpawnScreenPoint('chat');
+                addNode('chat', point.x, point.y);
                 return;
             }
             if (e.code === 'Digit2' || e.code === 'Numpad2') {
-                addNode('note', currentOffset.x + window.innerWidth / 2, currentOffset.y + window.innerHeight / 3);
+                const point = getNextSpawnScreenPoint('note');
+                addNode('note', point.x, point.y);
                 return;
             }
             if (e.code === 'Digit3' || e.code === 'Numpad3') {
-                addNode('drawing', currentOffset.x + window.innerWidth / 2, currentOffset.y + window.innerHeight / 3);
+                const point = getNextSpawnScreenPoint('drawing');
+                addNode('drawing', point.x, point.y);
                 return;
             }
         };
@@ -767,7 +789,7 @@ export const InfiniteCanvas = () => {
             window.removeEventListener('keyup', handleKeyUp);
             window.removeEventListener('blur', handleWindowBlur);
         };
-    }, [addNode]);
+    }, [addNode, getNextSpawnScreenPoint]);
 
     const dockButtonClass = clsx(
         "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide transition-all duration-200",
@@ -861,7 +883,6 @@ export const InfiniteCanvas = () => {
                         setActiveContextId={setActiveContextId}
                         updatePos={(x, y) => updateNodePos(node.id, x, y)}
                         updateMessages={(msgs) => updateNodeMessages(node.id, msgs)}
-                        updateContent={(content) => updateNodeContent(node.id, content)}
                         updateTitle={(title) => updateNodeTitle(node.id, title)}
                         updateSystemPrompt={(prompt) => updateNodeSystemPrompt(node.id, prompt)}
                         onDelete={() => deleteNode(node.id)}
@@ -968,7 +989,8 @@ export const InfiniteCanvas = () => {
             icon: <MessageSquare size={13} />,
             label: 'New Chat',
             onClick: () => {
-                const newNode = addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
+                const point = getNextSpawnScreenPoint('chat');
+                const newNode = addNode('chat', point.x, point.y);
                 if (contextBuffer.length > 0) {
                     const contextText = contextBuffer.map(i => i.text).join('\n\n');
                     const images = contextBuffer
@@ -998,7 +1020,10 @@ export const InfiniteCanvas = () => {
             title: 'New Note (2)',
             icon: <StickyNote size={13} />,
             label: 'New Note',
-            onClick: () => addNode('note', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3),
+            onClick: () => {
+                const point = getNextSpawnScreenPoint('note');
+                addNode('note', point.x, point.y);
+            },
         },
         {
             key: 'new-drawing',
@@ -1006,7 +1031,10 @@ export const InfiniteCanvas = () => {
             title: 'New Drawing (3)',
             icon: <Pencil size={13} />,
             label: 'New Drawing',
-            onClick: () => addNode('drawing', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3),
+            onClick: () => {
+                const point = getNextSpawnScreenPoint('drawing');
+                addNode('drawing', point.x, point.y);
+            },
         },
         {
             key: 'settings',
@@ -1026,7 +1054,7 @@ export const InfiniteCanvas = () => {
                 alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
             },
         },
-    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, offset.x, offset.y, showToast]);
+    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, getNextSpawnScreenPoint, showToast]);
 
     return (
         <div
@@ -1066,7 +1094,7 @@ export const InfiniteCanvas = () => {
                             dockSettingsOrderClass,
                             panelRadiusClass,
                             beautifulAppearClass,
-                            isSettingsVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0 pointer-events-none",
+                            isSettingsVisible ? "opacity-100" : "opacity-0 pointer-events-none",
                             isBeautifulUI && "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"
                         )}
                         style={{ backgroundColor: surfaceColor, color: textColor }}
@@ -1466,7 +1494,9 @@ export const InfiniteCanvas = () => {
                         : "opacity-100",
                     isBeautifulUI
                         ? "border-[#1b2b33]/30 shadow-[0_6px_16px_rgba(33,36,41,0.16)]"
-                        : "border-[#776a54]/45 shadow-none",
+                        : (isMinimapHovered || isMinimapDragging
+                            ? "border-[#776a54]/35 bg-[#eadfcb] shadow-none"
+                            : "border-transparent bg-transparent shadow-none"),
                     isBeautifulUI && beautifulAppearClass,
                     sharpEdges ? "rounded-none" : "rounded-[18px]"
                 )}
@@ -1478,7 +1508,7 @@ export const InfiniteCanvas = () => {
                     onPointerCancel={onMinimapPointerUp}
                     onPointerEnter={() => setIsMinimapHovered(true)}
                     onPointerLeave={() => setIsMinimapHovered(false)}
-                    style={{ backgroundColor: isBeautifulUI ? surfaceColor : '#f5eddc', touchAction: 'none' }}
+                    style={{ backgroundColor: isBeautifulUI ? surfaceColor : undefined, touchAction: 'none' }}
                 >
                     <div className="relative h-full w-full">
                         {minimapDots}

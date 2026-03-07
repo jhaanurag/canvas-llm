@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings, Droplets } from 'lucide-react';
+import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
@@ -17,7 +17,6 @@ interface ChatNodeProps {
     setActiveContextId: (id: string | null) => void;
     updatePos: (x: number, y: number) => void;
     updateMessages: (messages: Message[]) => void;
-    updateContent: (content: string) => void;
     updateTitle: (title: string) => void;
     updateSystemPrompt: (prompt: string) => void;
     onDelete: () => void;
@@ -39,7 +38,6 @@ const ChatNodeComponent = ({
     setActiveContextId,
     updatePos,
     updateMessages,
-    updateContent,
     updateTitle,
     updateSystemPrompt,
     onDelete,
@@ -83,7 +81,7 @@ const ChatNodeComponent = ({
         }
     }, [node.initialPrompt]);
     const [isDragging, setIsDragging] = useState(false);
-    const [activePanel, setActivePanel] = useState<'chat' | 'system' | 'notes'>('chat');
+    const [activePanel, setActivePanel] = useState<'chat' | 'system'>('chat');
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isHovered, setIsHovered] = useState(false);
     const [attachedFiles, setAttachedFiles] = useState<{ data: string; mimeType: string; name: string }[]>(node.initialAttachments || []);
@@ -326,8 +324,9 @@ const ChatNodeComponent = ({
                             className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                const allText = node.messages.map((m: Message) => `${m.role}: ${m.text}`).join('\n\n');
-                                onAddToContext(allText, node.id);
+                                const allText = node.messages.map((m: Message) => `${m.role}: ${m.text}`).join('\n\n').trim();
+                                const contextText = allText || node.initialPrompt?.trim() || node.title?.trim() || 'Chat context';
+                                onAddToContext(contextText, node.id);
                             }} title="Add chat to context"
                         >
                             <Plus size={16} style={isSelected ? { color: accentColor } : undefined} />
@@ -343,18 +342,6 @@ const ChatNodeComponent = ({
                             }}
                         >
                             <Settings size={16} style={activePanel === 'system' ? { color: accentColor } : undefined} />
-                        </Button>
-                        <Button
-                            data-no-drag
-                            size="icon"
-                            variant="ghost"
-                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setActivePanel((prev) => (prev === 'notes' ? 'chat' : 'notes'));
-                            }}
-                        >
-                            <FileText size={16} style={activePanel === 'notes' ? { color: accentColor } : undefined} />
                         </Button>
                         <Button
                             data-no-drag
@@ -389,7 +376,7 @@ const ChatNodeComponent = ({
                         <div className="flex flex-1 flex-col overflow-hidden border-b border-[#1b2b33]/20 bg-[#def3f2] px-4 py-3">
                             <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">System Prompt</span>
                             <Textarea
-                                className="flex-1 resize-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
+                                className="flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
                                 value={systemPrompt}
                                 onChange={(e) => {
                                     const newPrompt = e.target.value;
@@ -397,16 +384,6 @@ const ChatNodeComponent = ({
                                     updateSystemPrompt(newPrompt);
                                 }}
                                 placeholder="Set the AI's behavior..."
-                            />
-                        </div>
-                    ) : activePanel === 'notes' ? (
-                        <div className="flex flex-1 flex-col overflow-hidden bg-[#fff0cf] px-4 py-3">
-                            <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">Local Notes</span>
-                            <Textarea
-                                className="flex-1 resize-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
-                                value={node.content}
-                                onChange={(e) => updateContent(e.target.value)}
-                                placeholder="Notes..."
                             />
                         </div>
                     ) : (
