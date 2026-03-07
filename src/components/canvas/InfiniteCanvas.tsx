@@ -25,16 +25,14 @@ export const InfiniteCanvas = () => {
     const [isPanning, setIsPanning] = useState(false);
     const [activeTool, setActiveTool] = useState('select');
     const [activeContextId, setActiveContextId] = useState<string | null>(null);
-    const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
     const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
-    const [isSettingsMounted, setIsSettingsMounted] = useState(false);
-    const [isSettingsVisible, setIsSettingsVisible] = useState(false);
     const [isBeautifulUI, setIsBeautifulUI] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridResolution, setGridResolution] = useState(20);
     const [sharpEdges, setSharpEdges] = useState(false);
+    const [cornerRadius, setCornerRadius] = useState(18);
     const [accentColor, setAccentColor] = useState('#0f766e');
     const [surfaceColor, setSurfaceColor] = useState('#fff8ed');
     const [gridColor, setGridColor] = useState('#1b2b33');
@@ -45,23 +43,17 @@ export const InfiniteCanvas = () => {
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
     const [showButtonLabels, setShowButtonLabels] = useState(true);
-    const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
-    const [exitingNodeIds, setExitingNodeIds] = useState<string[]>([]);
+    const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
     const toastTimerRef = useRef<number | null>(null);
-    const toastExitRef = useRef<number | null>(null);
 
     const showToast = useCallback((message: string) => {
         if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-        if (toastExitRef.current) clearTimeout(toastExitRef.current);
-        
+
         const id = uuidv4();
-        setToast({ id, message, visible: true });
-        
+        setToast({ id, message });
+
         toastTimerRef.current = window.setTimeout(() => {
-            setToast(prev => prev?.id === id ? { ...prev, visible: false } : prev);
-            toastExitRef.current = window.setTimeout(() => {
-                setToast(prev => prev?.id === id ? null : prev);
-            }, 300);
+            setToast(prev => prev?.id === id ? null : prev);
         }, 3000);
     }, []);
 
@@ -102,9 +94,6 @@ export const InfiniteCanvas = () => {
             if (toastTimerRef.current !== null) {
                 clearTimeout(toastTimerRef.current);
             }
-            if (toastExitRef.current !== null) {
-                clearTimeout(toastExitRef.current);
-            }
             if (saveTimerRef.current !== null) {
                 clearTimeout(saveTimerRef.current);
             }
@@ -123,6 +112,10 @@ export const InfiniteCanvas = () => {
             : 20;
         const storedEdges = window.localStorage.getItem('canvas-edge-mode');
         const nextSharpEdges = storedEdges === 'sharp';
+        const storedCornerRadius = Number(window.localStorage.getItem('canvas-corner-radius') || '18');
+        const nextCornerRadius = Number.isFinite(storedCornerRadius) && storedCornerRadius >= 0 && storedCornerRadius <= 32
+            ? Math.round(storedCornerRadius)
+            : 18;
         const storedAccentColor = window.localStorage.getItem('canvas-accent-color');
         const nextAccentColor = storedAccentColor && /^#[0-9A-Fa-f]{6}$/.test(storedAccentColor)
             ? storedAccentColor
@@ -151,6 +144,7 @@ export const InfiniteCanvas = () => {
             setSnapToGrid(nextSnapToGrid);
             setGridResolution(nextGridResolution);
             setSharpEdges(nextSharpEdges);
+            setCornerRadius(nextCornerRadius);
             setAccentColor(nextAccentColor);
             setSurfaceColor(nextSurfaceColor);
             setGridColor(nextGridColor);
@@ -169,6 +163,7 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-snap-to-grid', snapToGrid ? 'on' : 'off');
         window.localStorage.setItem('canvas-grid-resolution', String(gridResolution));
         window.localStorage.setItem('canvas-edge-mode', sharpEdges ? 'sharp' : 'rounded');
+        window.localStorage.setItem('canvas-corner-radius', String(cornerRadius));
         window.localStorage.setItem('canvas-accent-color', accentColor);
         window.localStorage.setItem('canvas-surface-color', surfaceColor);
         window.localStorage.setItem('canvas-grid-color', gridColor);
@@ -176,18 +171,7 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-dock-position', dockPosition);
         window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
         window.localStorage.setItem('canvas-show-button-labels', showButtonLabels ? 'on' : 'off');
-    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels]);
-
-    useEffect(() => {
-        if (showCanvasSettings) {
-            setIsSettingsMounted(true);
-            requestAnimationFrame(() => setIsSettingsVisible(true));
-            return;
-        }
-        setIsSettingsVisible(false);
-        const timer = window.setTimeout(() => setIsSettingsMounted(false), 220);
-        return () => window.clearTimeout(timer);
-    }, [showCanvasSettings]);
+    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels]);
 
     const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
         nodes: state.nodes.map((node) => ({
@@ -637,30 +621,10 @@ export const InfiniteCanvas = () => {
     const deleteNodeImmediately = useCallback((id: string) => {
         setNodes(prev => prev.filter(n => n.id !== id));
         setConnections(prev => prev.filter(c => c.fromId !== id && c.toId !== id));
-        setSelectedNodeIds(prev => prev.filter(sid => sid !== id));
-        setExitingNodeIds(prev => prev.filter(exitId => exitId !== id));
     }, []);
-
     const deleteNode = useCallback((id: string) => {
-        if (!isBeautifulUI) {
-            deleteNodeImmediately(id);
-            return;
-        }
-        setExitingNodeIds(prev => {
-            if (prev.includes(id)) return prev;
-            return [...prev, id];
-        });
-        window.setTimeout(() => {
-            deleteNodeImmediately(id);
-        }, 220);
-    }, [deleteNodeImmediately, isBeautifulUI]);
-
-    const toggleNodeSelection = useCallback((id: string) => {
-        if (activeToolRef.current !== 'select') return;
-        setSelectedNodeIds(prev =>
-            prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
-        );
-    }, []);
+        deleteNodeImmediately(id);
+    }, [deleteNodeImmediately]);
 
     const addToContext = useCallback((text: string, sourceNodeId: string, image?: string) => {
         const normalizedText = text.trim();
@@ -668,6 +632,34 @@ export const InfiniteCanvas = () => {
         setContextBuffer(prev => [...prev, { id: uuidv4(), text: normalizedText || 'Context', sourceNodeId, image }]);
         showToast(image ? 'Image added to context' : 'Added to context');
     }, [showToast]);
+
+    const branchFromChatMessage = useCallback((nodeId: string, messageIndex: number) => {
+        const node = nodes.find((entry) => entry.id === nodeId);
+        if (!node || node.type !== 'chat') return;
+        const targetMessage = node.messages[messageIndex];
+        if (!targetMessage) return;
+
+        const branchCount = connections.filter((connection) => connection.fromId === node.id).length;
+        const branchScreenPoint = worldToScreen(
+            node.x + node.width + 80,
+            node.y + Math.min(branchCount, 5) * 120
+        );
+        const branchedNode = addNode('chat', branchScreenPoint.x, branchScreenPoint.y, node.id, targetMessage.text);
+        const transcript = node.messages
+            .slice(0, messageIndex + 1)
+            .map((message) => `${message.role}: ${message.text}`)
+            .join('\n\n');
+
+        window.setTimeout(() => {
+            setNodes((prev) => prev.map((entry) => entry.id === branchedNode.id ? {
+                ...entry,
+                initialPrompt: `Continue from this point in the conversation:\n\n${transcript}\n\nNext message:`,
+                hasInitialContext: true,
+            } : entry));
+        }, 100);
+
+        showToast('Branched chat created');
+    }, [addNode, connections, nodes, showToast, worldToScreen]);
 
     const removeFromContext = useCallback((id: string) => {
         setContextBuffer(prev => prev.filter(item => item.id !== id));
@@ -794,7 +786,7 @@ export const InfiniteCanvas = () => {
     const dockButtonClass = clsx(
         "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide",
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
-        sharpEdges ? "rounded-none" : "rounded-[10px]",
+        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
             : "border-transparent bg-transparent hover:bg-[#eadfcb]"
@@ -802,7 +794,7 @@ export const InfiniteCanvas = () => {
     const dockSettingsButtonClass = clsx(
         "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none",
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
-        sharpEdges ? "rounded-none" : "rounded-[10px]",
+        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
             : "border-transparent bg-transparent hover:bg-[#eadfcb]"
@@ -811,13 +803,12 @@ export const InfiniteCanvas = () => {
     const dockContextWidthClass = "w-fit max-w-[min(100vw-1.5rem,74rem)]";
     const dockMenuWidthClass = "w-fit max-w-[calc(100vw-1.5rem)]";
     const dockContainerPositionClass = dockPosition === 'top'
-        ? "top-3 pb-2 pt-[max(env(safe-area-inset-top),0px)]"
+        ? "top-3 pt-[max(env(safe-area-inset-top),0px)]"
         : "bottom-3 pb-[max(env(safe-area-inset-bottom),0px)]";
     const dockMenuOrderClass = dockPosition === 'top' ? 'order-1' : 'order-3';
     const dockContextOrderClass = 'order-2';
     const dockSettingsOrderClass = dockPosition === 'top' ? 'order-3' : 'order-1';
     const minimapPositionClass = dockPosition === 'bottom' ? 'bottom-[8.25rem]' : 'bottom-4';
-    const beautifulAppearClass = isBeautifulUI ? 'transition-opacity duration-120 ease-out' : '';
     const gridLineColor = useMemo(() => {
         const hex = gridColor.replace('#', '');
         if (hex.length !== 6) return 'rgba(27, 43, 51, 0.1)';
@@ -827,15 +818,9 @@ export const InfiniteCanvas = () => {
         if ([r, g, b].some(Number.isNaN)) return 'rgba(27, 43, 51, 0.1)';
         return `rgba(${r}, ${g}, ${b}, 0.12)`;
     }, [gridColor]);
-    const panelRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const segmentRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[12px]';
-    const segmentButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
-    const exitingNodeIdSet = useMemo(() => new Set(exitingNodeIds), [exitingNodeIds]);
-    const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
-    const selectedContextNodes = useMemo(
-        () => nodes.filter((node) => selectedNodeIdSet.has(node.id)),
-        [nodes, selectedNodeIdSet]
-    );
+    const panelRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const segmentRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-md)]';
+    const segmentButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
     const nodeById = useMemo(() => {
         const map = new Map<string, Node>();
         for (const node of nodes) map.set(node.id, node);
@@ -872,8 +857,6 @@ export const InfiniteCanvas = () => {
 
     const renderedNodes = useMemo(() => (
         nodes.map((node) => {
-            const isSelected = selectedNodeIdSet.has(node.id);
-            const isExiting = exitingNodeIdSet.has(node.id);
             if (node.type === 'chat') {
                 return (
                     <ChatNode
@@ -886,14 +869,11 @@ export const InfiniteCanvas = () => {
                         updateTitle={(title) => updateNodeTitle(node.id, title)}
                         updateSystemPrompt={(prompt) => updateNodeSystemPrompt(node.id, prompt)}
                         onDelete={() => deleteNode(node.id)}
-                        onSelect={() => toggleNodeSelection(node.id)}
-                        isSelected={isSelected}
-                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
-                        selectedNodesContext={selectedContextNodes}
                         onAddToContext={(text) => addToContext(text, node.id)}
+                        onBranchFromMessage={(messageIndex) => branchFromChatMessage(node.id, messageIndex)}
                         setGlobalSelection={(sel) => setGlobalSelection(sel ? { ...sel, nodeId: node.id } : null)}
                         onMouseDown={() => bringToFront(node.id)}
                     />
@@ -907,9 +887,6 @@ export const InfiniteCanvas = () => {
                         updatePos={(x, y) => updateNodePos(node.id, x, y)}
                         updateContent={(content) => updateNodeContent(node.id, content)}
                         onDelete={() => deleteNode(node.id)}
-                        onSelect={() => toggleNodeSelection(node.id)}
-                        isSelected={isSelected}
-                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
@@ -926,9 +903,6 @@ export const InfiniteCanvas = () => {
                         node={node}
                         updatePos={(x, y) => updateNodePos(node.id, x, y)}
                         onDelete={() => deleteNode(node.id)}
-                        onSelect={() => toggleNodeSelection(node.id)}
-                        isSelected={isSelected}
-                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
@@ -943,6 +917,7 @@ export const InfiniteCanvas = () => {
         activeContextId,
         accentColor,
         addToContext,
+        branchFromChatMessage,
         bringToFront,
         deleteNode,
         nodes,
@@ -950,10 +925,6 @@ export const InfiniteCanvas = () => {
         sharpEdges,
         setActiveContextId,
         setGlobalSelection,
-        selectedContextNodes,
-        exitingNodeIdSet,
-        selectedNodeIdSet,
-        toggleNodeSelection,
         updateNodeContent,
         updateNodeSystemPrompt,
         updateNodeTitle,
@@ -965,7 +936,7 @@ export const InfiniteCanvas = () => {
         nodes.map((node) => (
             <div
                 key={node.id}
-                className={clsx("absolute border border-[#1b2b33]/30", sharpEdges ? "rounded-none" : "rounded-[2px]")}
+                className={clsx("absolute border border-[#1b2b33]/30", sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-min)]")}
                 style={{
                     left: `${((node.x - WORLD_MIN_X) / WORLD_WIDTH) * 100}%`,
                     top: `${((node.y - WORLD_MIN_Y) / WORLD_HEIGHT) * 100}%`,
@@ -979,7 +950,12 @@ export const InfiniteCanvas = () => {
 
     const cssVars = {
         '--canvas-accent-70': `${accentColor}b3`,
-        '--canvas-accent': accentColor
+        '--canvas-accent': accentColor,
+        '--canvas-radius': `${sharpEdges ? 0 : cornerRadius}px`,
+        '--canvas-radius-md': `${sharpEdges ? 0 : Math.max(0, cornerRadius - 4)}px`,
+        '--canvas-radius-sm': `${sharpEdges ? 0 : Math.max(0, cornerRadius - 8)}px`,
+        '--canvas-radius-xs': `${sharpEdges ? 0 : Math.max(0, cornerRadius - 10)}px`,
+        '--canvas-radius-min': `${sharpEdges ? 0 : Math.max(0, Math.min(4, cornerRadius - 12))}px`
     } as React.CSSProperties;
     const dockActionButtons = useMemo(() => ([
         {
@@ -1086,15 +1062,13 @@ export const InfiniteCanvas = () => {
             )}
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>
-                {isSettingsMounted && (
+                {showCanvasSettings && (
                     <div
                         className={clsx(
                             "pointer-events-auto relative z-[2200] border border-[#1b2b33]/25 px-3.5 py-3",
                             dockSettingsWidthClass,
                             dockSettingsOrderClass,
                             panelRadiusClass,
-                            beautifulAppearClass,
-                            isSettingsVisible ? "opacity-100" : "opacity-0 pointer-events-none",
                             isBeautifulUI && "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"
                         )}
                         style={{ backgroundColor: surfaceColor, color: textColor }}
@@ -1107,7 +1081,7 @@ export const InfiniteCanvas = () => {
                             <button
                                 className={clsx(
                                     "inline-flex h-9 min-w-24 self-start items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setIsBeautifulUI((prev) => !prev)}
                                 title="Toggle UI quality"
@@ -1125,7 +1099,7 @@ export const InfiniteCanvas = () => {
                                 <button
                                     className={clsx(
                                     "inline-flex h-9 min-w-16 items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)]",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setSnapToGrid((prev) => !prev)}
                                 title="Toggle snapping"
@@ -1146,7 +1120,7 @@ export const InfiniteCanvas = () => {
                                     }}
                                     className={clsx(
                                         "h-9 w-16 border border-[#21404a]/35 bg-[#fff8ed] px-2 text-[11px] font-semibold",
-                                        sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     style={{ color: textColor }}
                                 />
@@ -1155,19 +1129,41 @@ export const InfiniteCanvas = () => {
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Edge Mode</div>
-                                <div className="text-[10px] opacity-70">Rounded keeps soft corners. Sharp uses straight edges.</div>
+                                <div className="text-[10px] opacity-70">Toggle wins first. Rounded uses the stored radius value below.</div>
                             </div>
-                            <button
-                                className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
-                                )}
-                                onClick={() => setSharpEdges((prev) => !prev)}
-                                title="Toggle edge style"
-                                style={{ color: textColor }}
-                            >
-                                {sharpEdges ? 'Sharp' : 'Rounded'}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <label className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.08em] opacity-80">
+                                    <span>Radius</span>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        max={32}
+                                        step={1}
+                                        value={cornerRadius}
+                                        onChange={(e) => {
+                                            const next = Number(e.target.value);
+                                            if (!Number.isFinite(next)) return;
+                                            setCornerRadius(Math.max(0, Math.min(32, Math.round(next))));
+                                        }}
+                                        className={clsx(
+                                            "h-9 w-16 border border-[#21404a]/35 bg-[#fff8ed] px-2 text-[11px] font-semibold",
+                                            sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                                        )}
+                                        style={{ color: textColor }}
+                                    />
+                                </label>
+                                <button
+                                    className={clsx(
+                                        "inline-flex h-9 min-w-24 self-start items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                                    )}
+                                    onClick={() => setSharpEdges((prev) => !prev)}
+                                    title="Toggle edge style"
+                                    style={{ color: textColor }}
+                                >
+                                    {sharpEdges ? 'Sharp' : 'Rounded'}
+                                </button>
+                            </div>
                         </div>
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
@@ -1176,7 +1172,7 @@ export const InfiniteCanvas = () => {
                             </div>
                             <div className={clsx(
                                 "flex h-10 items-center gap-1 border p-1",
-                                sharpEdges ? "rounded-none" : "rounded-[10px]",
+                                sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                 isBeautifulUI
                                     ? "border-[#21404a]/35 bg-[#fff8ed]"
                                     : "border-[#776a54]/45 bg-[#f0e5cf]"
@@ -1184,7 +1180,7 @@ export const InfiniteCanvas = () => {
                                 <button
                                     className={clsx(
                                         "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
-                                        sharpEdges ? "rounded-none" : "rounded-[8px]",
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'top'
                                             ? "text-[#f8fffd]"
                                             : "text-[#1b2b33] hover:bg-[#e9dcc4]"
@@ -1197,7 +1193,7 @@ export const InfiniteCanvas = () => {
                                 <button
                                     className={clsx(
                                         "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
-                                        sharpEdges ? "rounded-none" : "rounded-[8px]",
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'bottom'
                                             ? "text-[#f8fffd]"
                                             : "text-[#1b2b33] hover:bg-[#e9dcc4]"
@@ -1217,7 +1213,7 @@ export const InfiniteCanvas = () => {
                             <button
                                 className={clsx(
                                     "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setShowMinimap((prev) => !prev)}
                                 title="Toggle minimap"
@@ -1235,7 +1231,7 @@ export const InfiniteCanvas = () => {
                             <button
                                 className={clsx(
                                     "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setShowButtonLabels((prev) => !prev)}
                                 title="Toggle button labels"
@@ -1253,7 +1249,7 @@ export const InfiniteCanvas = () => {
                                 <label
                                     className={clsx(
                                         "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     title="Accent color"
                                     style={{ backgroundColor: surfaceColor }}
@@ -1269,7 +1265,7 @@ export const InfiniteCanvas = () => {
                                 <label
                                     className={clsx(
                                         "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     title="Surface color"
                                     style={{ backgroundColor: surfaceColor }}
@@ -1285,7 +1281,7 @@ export const InfiniteCanvas = () => {
                                 <label
                                     className={clsx(
                                         "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     title="Grid color"
                                     style={{ backgroundColor: surfaceColor }}
@@ -1301,7 +1297,7 @@ export const InfiniteCanvas = () => {
                                 <label
                                     className={clsx(
                                         "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     title="Text color"
                                     style={{ backgroundColor: surfaceColor }}
@@ -1327,7 +1323,6 @@ export const InfiniteCanvas = () => {
                             dockContextWidthClass,
                             dockContextOrderClass,
                             panelRadiusClass,
-                            beautifulAppearClass,
                             isBeautifulUI
                                 ? "border-[#1b2b33]/25"
                                 : "border-[#776a54]/45 bg-[#f5eddc]",
@@ -1351,7 +1346,7 @@ export const InfiniteCanvas = () => {
                                             onClick={() => removeFromContext(item.id)}
                                             className={clsx(
                                                 "flex h-8 shrink-0 items-center gap-1 border px-2.5 text-[11px] hover:border-red-500/40 hover:text-red-700 hover:line-through",
-                                                sharpEdges ? "rounded-none" : "rounded-[10px]",
+                                                sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                                 isBeautifulUI
                                                     ? "border-[#1b2b33]/25 bg-[#fffaf2] text-[#1b2b33]"
                                                     : "border-[#776a54]/45 bg-[#f0e5cf] text-[#21313a]"
@@ -1362,7 +1357,7 @@ export const InfiniteCanvas = () => {
                                             {item.image && (
                                                 <span className={clsx(
                                                     "inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em]",
-                                                    sharpEdges ? "rounded-none" : "rounded-[8px]",
+                                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                                     isBeautifulUI ? "border-[#1b2b33]/20 bg-[#ffffffcc]" : "border-[#776a54]/35 bg-[#ffffffb8]"
                                                 )}>
                                                     <ImageIcon size={10} style={{ color: accentColor }} />
@@ -1377,7 +1372,7 @@ export const InfiniteCanvas = () => {
                                 onClick={() => setContextBuffer([])}
                                 className={clsx(
                                     "inline-flex h-8 shrink-0 items-center border px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700 hover:bg-red-50",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]",
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                     isBeautifulUI
                                         ? "border-red-500/30 bg-[#fff8ed]"
                                         : "border-red-500/35 bg-[#f5eddc]"
@@ -1394,7 +1389,6 @@ export const InfiniteCanvas = () => {
                         "pointer-events-auto relative z-[2100]",
                         dockMenuWidthClass,
                         dockMenuOrderClass,
-                        beautifulAppearClass,
                         isBeautifulUI
                             ? ["border border-[#1b2b33]/25 px-3 py-3", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
                             : "px-0 py-0"
@@ -1406,7 +1400,7 @@ export const InfiniteCanvas = () => {
                             {isBeautifulUI && (
                                 <div className={clsx(
                                     "inline-flex h-10 items-center gap-1.5 border px-3 text-[11px] font-semibold tracking-[0.14em]",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]",
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                     "border-[#21404a]/35 bg-[#fff8ed]"
                                 )} style={{ color: textColor }}>
                                     <MapIcon size={13} />
@@ -1475,9 +1469,8 @@ export const InfiniteCanvas = () => {
                 <div
                     data-ui-overlay
                     className={clsx(
-                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-opacity duration-120 ease-out",
-                        sharpEdges ? "rounded-none" : "rounded-[10px]",
-                        toast.visible ? "opacity-100" : "opacity-0"
+                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)]",
+                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                     )}
                     style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}40` }}
                 >
@@ -1487,7 +1480,7 @@ export const InfiniteCanvas = () => {
 
             {showMinimap && (
                 <div className={clsx(
-                    "fixed right-4 z-[1000] hidden h-24 w-32 border p-1 transition-opacity duration-200 ease-out md:block",
+                    "fixed right-4 z-[1000] hidden h-24 w-32 border p-1 md:block",
                     minimapPositionClass,
                     isBeautifulUI
                         ? (isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-70")
@@ -1497,8 +1490,7 @@ export const InfiniteCanvas = () => {
                         : (isMinimapHovered || isMinimapDragging
                             ? "border-[#776a54]/35 bg-[#eadfcb] shadow-none"
                             : "border-transparent bg-transparent shadow-none"),
-                    isBeautifulUI && beautifulAppearClass,
-                    sharpEdges ? "rounded-none" : "rounded-[18px]"
+                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius)]"
                 )}
                     data-ui-overlay
                     ref={minimapRef}
@@ -1513,7 +1505,7 @@ export const InfiniteCanvas = () => {
                     <div className="relative h-full w-full">
                         {minimapDots}
                         <div
-                            className={clsx("absolute border", sharpEdges ? "rounded-none" : "rounded-[2px]")}
+                            className={clsx("absolute border", sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-min)]")}
                             style={{
                                 left: `${((-offset.x - WORLD_MIN_X) / WORLD_WIDTH) * 100}%`,
                                 top: `${((-offset.y - WORLD_MIN_Y) / WORLD_HEIGHT) * 100}%`,

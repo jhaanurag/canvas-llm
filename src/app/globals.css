@@ -188,4 +188,34 @@
     background: rgba(27, 43, 51, 0.38);
     border-radius: 999px;
   }
+
+  .hover-scroll-y {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+  }
+
+  .hover-scroll-y::-webkit-scrollbar {
+    height: 0;
+    width: 0;
+  }
+
+  .hover-scroll-y:hover {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(27, 43, 51, 0.38) rgba(27, 43, 51, 0.1);
+  }
+
+  .hover-scroll-y:hover::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .hover-scroll-y:hover::-webkit-scrollbar-track {
+    background: rgba(27, 43, 51, 0.1);
+    border-radius: 999px;
+  }
+
+  .hover-scroll-y:hover::-webkit-scrollbar-thumb {
+    background: rgba(27, 43, 51, 0.38);
+    border-radius: 999px;
+  }
 }

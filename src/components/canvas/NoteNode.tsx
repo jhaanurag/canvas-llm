@@ -13,11 +13,8 @@ interface NoteNodeProps {
     updatePos: (x: number, y: number) => void;
     updateContent: (content: string) => void;
     onDelete: () => void;
-    onSelect: () => void;
     onMouseDown: () => void;
 
-    isSelected: boolean;
-    isExiting?: boolean;
     isBeautifulUI?: boolean;
     sharpEdges?: boolean;
     accentColor?: string;
@@ -25,14 +22,14 @@ interface NoteNodeProps {
     onAddToContext: (text: string, nodeId: string) => void;
 }
 
-const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect, onMouseDown, isSelected, isExiting = false, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', setGlobalSelection, onAddToContext }: NoteNodeProps) => {
-    const motionClass = 'transition-opacity duration-120 ease-out';
+const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDown, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', setGlobalSelection, onAddToContext }: NoteNodeProps) => {
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isHovered, setIsHovered] = useState(false);
-    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
+    const [contextFeedback, setContextFeedback] = useState(false);
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
 
     const cssVars = {
         '--node-accent': accentColor,
@@ -49,11 +46,16 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
             setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
             e.stopPropagation();
         } else {
-            onSelect();
             setGlobalSelection(null);
             e.stopPropagation();
         }
     };
+
+    useEffect(() => {
+        if (!contextFeedback) return;
+        const timer = window.setTimeout(() => setContextFeedback(false), 1800);
+        return () => window.clearTimeout(timer);
+    }, [contextFeedback]);
 
     // Removed auto-focus to allow typing in system prompt and notes
     useEffect(() => {
@@ -81,11 +83,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,
-                isBeautifulUI && motionClass,
-                isBeautifulUI && "animate-in fade-in-0 duration-120",
-                isSelected && !isDragging ? "ring-2" : "",
-                isDragging && "select-none cursor-grabbing",
-                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0" : "opacity-100")
+                isDragging && "select-none cursor-grabbing"
             )}
             style={{
                 left: node.x,
@@ -94,7 +92,6 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -103,8 +100,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
             <div className={clsx(
                 "flex h-full flex-col overflow-hidden border",
                 shellRadiusClass,
-                isBeautifulUI && motionClass,
-                (isHovered || isDragging || isSelected)
+                (isHovered || isDragging)
                     ? isBeautifulUI
                         ? "border-[#1b2b33]/35 bg-[#fff6dd] shadow-[0_16px_36px_rgba(33,36,41,0.16)]"
                         : "border-[#1b2b33]/35 bg-[#fff6dd]"
@@ -113,8 +109,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                 <div
                     className={clsx(
                         "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#ffe5a8]/80 px-3.5 active:cursor-grabbing",
-                        isBeautifulUI && motionClass,
-                        (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
+                        (isHovered || isDragging) ? "opacity-100" : "opacity-0"
                     )}
                     style={{ touchAction: 'none' }}
                 >
@@ -127,24 +122,37 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                             data-no-drag
                             size="icon"
                             variant="ghost"
-                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)}
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onAddToContext(node.content || '', node.id);
+                                setContextFeedback(true);
                             }}
                             title="Add note to context"
                         >
-                            <Plus size={16} style={isSelected ? { color: accentColor } : undefined} />
+                            <Plus size={16} />
                         </Button>
-                        <X data-no-drag size={16} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                        <X data-no-drag size={16} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
                 <Textarea
                     value={node.content}
                     onChange={(e) => updateContent(e.target.value)}
-                    className={clsx("h-full w-full resize-none border-none bg-transparent px-4 py-3 text-sm leading-tight text-[#22363f] focus-visible:ring-0", isBeautifulUI && motionClass)}
+                    className="h-full w-full resize-none border-none bg-transparent px-4 py-3 text-sm leading-tight text-[#22363f] focus-visible:ring-0"
                     placeholder="Notes..."
                 />
+            </div>
+            <div
+                className={clsx(
+                    "absolute left-4 z-0 border border-[#1b2b33]/20 bg-[#fffdf7] px-3 py-1 shadow-sm pointer-events-none",
+                    contextFeedback ? "opacity-100 top-[calc(100%-4px)]" : "opacity-0 top-[calc(100%-16px)]",
+                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                )}
+            >
+                <div className="flex items-center gap-1.5 opacity-80">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
+                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">Context added</span>
+                </div>
             </div>
         </div>
     );
@@ -152,8 +160,6 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
 
 export const NoteNode = React.memo(NoteNodeComponent, (prev, next) => (
     prev.node === next.node &&
-    prev.isSelected === next.isSelected &&
-    prev.isExiting === next.isExiting &&
     prev.isBeautifulUI === next.isBeautifulUI &&
     prev.sharpEdges === next.sharpEdges
 ));

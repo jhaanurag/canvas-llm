@@ -11,18 +11,14 @@ interface DrawingNodeProps {
     node: Node;
     updatePos: (x: number, y: number) => void;
     onDelete: () => void;
-    onSelect: () => void;
     onMouseDown: () => void;
-    isSelected: boolean;
-    isExiting?: boolean;
     isBeautifulUI?: boolean;
     sharpEdges?: boolean;
     accentColor?: string;
     onAddToContext?: (text: string, sourceNodeId: string, image?: string) => void;
 }
 
-const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, isExiting = false, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onAddToContext }: DrawingNodeProps) => {
-    const motionClass = 'transition-opacity duration-120 ease-out';
+const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onAddToContext }: DrawingNodeProps) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -30,16 +26,16 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
     const [isHovered, setIsHovered] = useState(false);
     const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
     const [hasStrokes, setHasStrokes] = useState(false);
+    const [contextFeedback, setContextFeedback] = useState(false);
 
     const cssVars = {
         '--node-accent': accentColor,
         '--node-accent-15': `${accentColor}26`,
         '--node-accent-70': `${accentColor}b3`,
     } as React.CSSProperties;
-    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
-    const canvasRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-b-[18px]';
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
 
     const detectCanvasInk = (canvas: HTMLCanvasElement) => {
         const ctx = canvas.getContext('2d');
@@ -61,9 +57,14 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
         ctx.lineWidth = 2;
     }, []);
 
+    useEffect(() => {
+        if (!contextFeedback) return;
+        const timer = window.setTimeout(() => setContextFeedback(false), 1800);
+        return () => window.clearTimeout(timer);
+    }, [contextFeedback]);
+
     const startDrawing = (e: React.PointerEvent<HTMLCanvasElement>) => {
         onMouseDown();
-        onSelect();
         e.stopPropagation();
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -113,7 +114,6 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
             return;
         }
         onMouseDown();
-        onSelect();
         e.preventDefault();
         e.stopPropagation();
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -146,11 +146,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,
-                isBeautifulUI && motionClass,
-                isBeautifulUI && "animate-in fade-in-0 duration-120",
-                isSelected && !isDragging ? "ring-2" : "",
-                isDragging && "select-none cursor-grabbing",
-                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0" : "opacity-100")
+                isDragging && "select-none cursor-grabbing"
             )}
             style={{
                 left: node.x,
@@ -159,7 +155,6 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -167,8 +162,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
             <div className={clsx(
                 "flex h-full flex-col overflow-hidden border",
                 shellRadiusClass,
-                isBeautifulUI && motionClass,
-                (isHovered || isDragging || isSelected)
+                (isHovered || isDragging)
                     ? isBeautifulUI
                         ? "border-[#1b2b33]/35 bg-[#fffaf2] shadow-[0_16px_36px_rgba(33,36,41,0.16)]"
                         : "border-[#1b2b33]/35 bg-[#fffaf2]"
@@ -177,8 +171,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                 <div
                     className={clsx(
                         "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#eef5f8]/90 px-3.5 active:cursor-grabbing",
-                        isBeautifulUI && motionClass,
-                        (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
+                        (isHovered || isDragging) ? "opacity-100" : "opacity-0"
                     )}
                     onPointerDown={handleDragStart}
                     style={{ touchAction: 'none' }}
@@ -186,14 +179,14 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                     <div className="flex items-center gap-1">
                         <GripVertical size={14} className="text-[#1b2b33]/70" />
                         <div className="ml-1 flex gap-1 overflow-hidden">
-                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} onClick={() => setTool('pen')}>
+                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass)} onClick={() => setTool('pen')}>
                                 <Pencil size={12} style={tool === 'pen' ? { color: accentColor } : undefined} />
                             </Button>
-                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} onClick={() => setTool('eraser')}>
+                            <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass)} onClick={() => setTool('eraser')}>
                                 <Eraser size={12} style={tool === 'eraser' ? { color: accentColor } : undefined} />
                             </Button>
                             {onAddToContext && (
-                                <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} title="Add to Context" onClick={() => {
+                                <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass)} title="Add to Context" onClick={() => {
                                     const canvas = canvasRef.current;
                                     if(canvas) {
                                          // Create a scaled-down temporary canvas to reduce size/resolution
@@ -206,10 +199,11 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                                              ctx.fillStyle = '#FFFFFF';
                                              ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
                                              ctx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
-                                             
+                                            
                                              // For now, continue sending as base64 string for GenAI compatibility
                                              // but compress using jpeg at reduced quality
                                              onAddToContext("Drawing", node.id, tempCanvas.toDataURL('image/jpeg', 0.8));
+                                             setContextFeedback(true);
                                          }
                                     }
                                 }}>
@@ -218,7 +212,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                             )}
                         </div>
                     </div>
-                    <X data-no-drag size={14} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                    <X data-no-drag size={14} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                 </div>
                 <canvas
                     ref={canvasRef}
@@ -229,17 +223,31 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                     onPointerUp={stopDrawing}
                     onPointerCancel={stopDrawing}
                     className={clsx(
-                        "block cursor-crosshair transition-colors duration-150 ease-out",
-                        canvasRadiusClass,
-                        isBeautifulUI && motionClass,
-                        (isHovered || isDragging || isSelected)
+                        "block cursor-crosshair",
+                        (isHovered || isDragging)
                             ? "bg-white/95"
                             : hasStrokes
                                 ? "bg-transparent"
                                 : "bg-white/40"
                     )}
-                    style={{ touchAction: 'none' }}
+                    style={{
+                        touchAction: 'none',
+                        borderBottomLeftRadius: sharpEdges ? 0 : 'var(--canvas-radius)',
+                        borderBottomRightRadius: sharpEdges ? 0 : 'var(--canvas-radius)'
+                    }}
                 />
+            </div>
+            <div
+                className={clsx(
+                    "absolute left-4 z-0 border border-[#1b2b33]/20 bg-[#fffdf7] px-3 py-1 shadow-sm pointer-events-none",
+                    contextFeedback ? "opacity-100 top-[calc(100%-4px)]" : "opacity-0 top-[calc(100%-16px)]",
+                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                )}
+            >
+                <div className="flex items-center gap-1.5 opacity-80">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
+                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">Image added</span>
+                </div>
             </div>
         </div>
     );
@@ -247,8 +255,6 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
 
 export const DrawingNode = React.memo(DrawingNodeComponent, (prev, next) => (
     prev.node === next.node &&
-    prev.isSelected === next.isSelected &&
-    prev.isExiting === next.isExiting &&
     prev.isBeautifulUI === next.isBeautifulUI &&
     prev.sharpEdges === next.sharpEdges
 ));

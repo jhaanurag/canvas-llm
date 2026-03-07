@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets } from 'lucide-react';
+import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets, GitBranchPlus } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
@@ -20,16 +20,13 @@ interface ChatNodeProps {
     updateTitle: (title: string) => void;
     updateSystemPrompt: (prompt: string) => void;
     onDelete: () => void;
-    onSelect: () => void;
     onMouseDown: () => void;
     onAddToContext: (text: string, nodeId: string) => void;
+    onBranchFromMessage: (messageIndex: number) => void;
     setGlobalSelection: (selection: { text: string; x: number; y: number } | null) => void;
-    isSelected: boolean;
-    isExiting?: boolean;
     isBeautifulUI?: boolean;
     sharpEdges?: boolean;
     accentColor?: string;
-    selectedNodesContext?: Node[];
 }
 
 const ChatNodeComponent = ({
@@ -41,23 +38,18 @@ const ChatNodeComponent = ({
     updateTitle,
     updateSystemPrompt,
     onDelete,
-    onSelect,
     onMouseDown,
     onAddToContext,
+    onBranchFromMessage,
     setGlobalSelection,
-    isSelected,
-    isExiting = false,
     isBeautifulUI = false,
     sharpEdges = false,
     accentColor = '#0f766e',
-    selectedNodesContext = []
 }: ChatNodeProps) => {
-    const motionClass = 'transition-opacity duration-120 ease-out';
-    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
-    const headerButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[8px]';
-    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
-    const bubbleRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[12px]';
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
+    const headerButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-xs)]';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
 
     const cssVars = {
         '--node-accent': accentColor,
@@ -95,6 +87,8 @@ const ChatNodeComponent = ({
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
     const [bubbleTransparencyMode, setBubbleTransparencyMode] = useState<'auto' | 'solid'>('auto');
+    const [contextFeedback, setContextFeedback] = useState<string | null>(null);
+    const [messageMenu, setMessageMenu] = useState<{ index: number; x: number; y: number } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -123,7 +117,6 @@ const ChatNodeComponent = ({
             setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
             e.stopPropagation();
         } else {
-            onSelect();
             setGlobalSelection(null);
             e.stopPropagation();
         }
@@ -171,18 +164,8 @@ const ChatNodeComponent = ({
     };
 
     const sendMessage = async (overridePrompt?: string) => {
-        let text = overridePrompt || input;
+        const text = overridePrompt || input;
         if (!text.trim() && attachedFiles.length === 0) return;
-
-        // Aggregating context from selected nodes
-        const extraContextNodes = selectedNodesContext.filter((n) => n.id !== node.id);
-        if (extraContextNodes.length > 0) {
-            const contexts = extraContextNodes.map(n => {
-                const lastMsgs = n.messages.slice(-3).map(m => `[${m.role}]: ${m.text}`).join('\n');
-                return `### Context from ${n.type} node (${n.id})\n${n.content ? `Notes: ${n.content}\n` : ''}${lastMsgs}`;
-            }).join('\n\n');
-            text = `Using this additional context:\n${contexts}\n\nMy Question: ${text}`;
-        }
 
         const userMsg: Message = {
             id: uuidv4(),
@@ -226,16 +209,49 @@ const ChatNodeComponent = ({
         }
     };
 
+    useEffect(() => {
+        if (!contextFeedback) return;
+        const timer = window.setTimeout(() => setContextFeedback(null), 1800);
+        return () => window.clearTimeout(timer);
+    }, [contextFeedback]);
+
+    useEffect(() => {
+        if (!messageMenu) return;
+        const closeMenu = () => setMessageMenu(null);
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setMessageMenu(null);
+            }
+        };
+        window.addEventListener('pointerdown', closeMenu);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('pointerdown', closeMenu);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [messageMenu]);
+
+    const deleteMessagesAbove = (index: number) => {
+        updateMessages(node.messages.slice(index));
+        setMessageMenu(null);
+    };
+
+    const deleteMessagesBelow = (index: number) => {
+        updateMessages(node.messages.slice(0, index + 1));
+        setMessageMenu(null);
+    };
+
+    const removeSingleMessage = (index: number) => {
+        updateMessages(node.messages.filter((_, msgIndex) => msgIndex !== index));
+        setMessageMenu(null);
+    };
+
     return (
         <div
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,
-                isBeautifulUI && motionClass,
-                isBeautifulUI && "animate-in fade-in-0 duration-120",
-                isSelected && showChrome && !isDragging ? "ring-2" : "",
-                isDragging && "select-none cursor-grabbing",
-                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0" : "opacity-100")
+                isDragging && "select-none cursor-grabbing"
             )}
             style={{
                 left: node.x,
@@ -244,7 +260,6 @@ const ChatNodeComponent = ({
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected && showChrome && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => {
                 setIsHovered(true);
@@ -260,7 +275,6 @@ const ChatNodeComponent = ({
                 className={clsx(
                     "flex relative z-10 h-full flex-col overflow-hidden border",
                     shellRadiusClass,
-                    isBeautifulUI && motionClass,
                     showChrome
                         ? isBeautifulUI
                             ? "border-[#1b2b33]/35 bg-[#fff8ed] shadow-[0_16px_36px_rgba(33,36,41,0.18)]"
@@ -272,7 +286,6 @@ const ChatNodeComponent = ({
                 <div
                     className={clsx(
                         "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#edf5f8]/90 px-3.5 active:cursor-grabbing",
-                        isBeautifulUI && motionClass,
                         showChrome ? "opacity-100" : "opacity-0"
                     )}
                     style={{ touchAction: 'none' }}
@@ -304,7 +317,6 @@ const ChatNodeComponent = ({
                                 data-no-drag
                                 className={clsx(
                                     "cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-[#22363f] hover:text-[color:var(--node-accent)]",
-                                    isBeautifulUI && motionClass
                                 )}
                                 style={{ color: isEditingTitle ? accentColor : undefined }}
                                 onClick={(e) => {
@@ -321,21 +333,22 @@ const ChatNodeComponent = ({
                             data-no-drag
                             size="icon"
                             variant="ghost"
-                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 const allText = node.messages.map((m: Message) => `${m.role}: ${m.text}`).join('\n\n').trim();
                                 const contextText = allText || node.initialPrompt?.trim() || node.title?.trim() || 'Chat context';
                                 onAddToContext(contextText, node.id);
+                                setContextFeedback('Context added');
                             }} title="Add chat to context"
                         >
-                            <Plus size={16} style={isSelected ? { color: accentColor } : undefined} />
+                            <Plus size={16} />
                         </Button>
                         <Button
                             data-no-drag
                             size="icon"
                             variant="ghost"
-                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setActivePanel((prev) => (prev === 'system' ? 'chat' : 'system'));
@@ -347,7 +360,7 @@ const ChatNodeComponent = ({
                             data-no-drag
                             size="icon"
                             variant="ghost"
-                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass)}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setBubbleTransparencyMode((prev) => prev === 'auto' ? 'solid' : 'auto');
@@ -356,7 +369,7 @@ const ChatNodeComponent = ({
                         >
                             <Droplets size={16} style={bubbleTransparencyMode === 'auto' ? { color: accentColor } : undefined} />
                         </Button>
-                        <X data-no-drag size={16} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                        <X data-no-drag size={16} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
 
@@ -364,7 +377,6 @@ const ChatNodeComponent = ({
                     {node.sourceSelection && (
                         <div className={clsx(
                             "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap border-b border-[#1b2b33]/20 p-2 text-[10px] italic font-medium",
-                            isBeautifulUI && motionClass,
                             (isHovered || isDragging) ? "opacity-100" : "opacity-30",
                             activeContextId === node.parentId ? "text-[#f8fffd]" : "bg-[#f4eee0] text-[#1b2b33]"
                         )}>
@@ -390,11 +402,11 @@ const ChatNodeComponent = ({
                         <div
                             ref={messagesViewportRef}
                             data-no-pan
-                            className="flex-1 overflow-x-hidden overflow-y-auto bg-transparent"
+                            className="hover-scroll-y flex-1 overflow-x-hidden overflow-y-auto bg-transparent"
                             onWheel={(e) => e.stopPropagation()}
                         >
                             <div className="space-y-3 px-4 py-3">
-                                {node.messages.map((msg: Message) => (
+                                {node.messages.map((msg: Message, index: number) => (
                                     <div
                                         key={msg.id}
                                         className={clsx(
@@ -403,9 +415,13 @@ const ChatNodeComponent = ({
                                         )}
                                     >
                                         <div
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setMessageMenu({ index, x: e.clientX + 8, y: e.clientY + 8 });
+                                            }}
                                             className={clsx(
                                                 "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
-                                                bubbleRadiusClass,
                                                 dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                 msg.role === 'user'
                                                     ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "text-[#f8fffd]")
@@ -416,6 +432,10 @@ const ChatNodeComponent = ({
                                                 wordWrap: 'break-word',
                                                 overflowWrap: 'break-word',
                                                 whiteSpace: 'pre-wrap',
+                                                borderTopLeftRadius: sharpEdges ? 0 : 'var(--canvas-radius-md)',
+                                                borderTopRightRadius: sharpEdges ? 0 : 'var(--canvas-radius-md)',
+                                                borderBottomLeftRadius: sharpEdges ? 0 : msg.role === 'user' ? 'var(--canvas-radius-md)' : '4px',
+                                                borderBottomRightRadius: sharpEdges ? 0 : msg.role === 'user' ? '4px' : 'var(--canvas-radius-md)',
                                                 ...(msg.role === 'user' && !dimBubbles ? { backgroundColor: accentColor, borderColor: accentColor } : {}),
                                             }}
                                         >
@@ -448,7 +468,6 @@ const ChatNodeComponent = ({
 
                 <div className={clsx(
                     "relative flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
-                    isBeautifulUI && motionClass,
                     isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50"
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
@@ -458,7 +477,6 @@ const ChatNodeComponent = ({
                         className={clsx(
                             "h-10 w-10 border p-0 bg-transparent hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
                             controlRadiusClass,
-                            isBeautifulUI && motionClass,
                             isActive ? "border-[#1b2b33]/30" : "border-transparent"
                         )}
                         onMouseDown={(e) => e.preventDefault()}
@@ -481,7 +499,6 @@ const ChatNodeComponent = ({
                         className={clsx(
                             "h-10 min-h-10 max-h-10 flex-1 resize-none border bg-[#fffdf7] px-3 py-2 text-sm leading-5 text-[#1b2b33] focus-visible:ring-2",
                             controlRadiusClass,
-                            isBeautifulUI && motionClass,
                             isActive ? "border-[#1b2b33]/28" : "border-transparent"
                         )}
                         autoFocus
@@ -492,7 +509,6 @@ const ChatNodeComponent = ({
                         className={clsx(
                             "h-10 border bg-transparent px-4 hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
                             controlRadiusClass,
-                            isBeautifulUI && motionClass,
                             isActive ? "border-[#1b2b33]/30" : "border-transparent"
                         )}
                     >
@@ -504,11 +520,11 @@ const ChatNodeComponent = ({
             {/* Context Attached Module */}
             <div
                 className={clsx(
-                    "absolute left-4 px-3 py-1 border border-[#1b2b33]/20 shadow-sm pointer-events-none transition-opacity duration-120 ease-out z-0 bg-[#fffdf7]",
-                    node.hasInitialContext && node.messages.length === 0
+                    "absolute left-4 z-0 border border-[#1b2b33]/20 bg-[#fffdf7] px-3 py-1 shadow-sm pointer-events-none",
+                    (contextFeedback || (node.hasInitialContext && node.messages.length === 0))
                         ? "opacity-100 top-[calc(100%-4px)]"
                         : "opacity-0 top-[calc(100%-16px)] pointer-events-none",
-                    sharpEdges ? "rounded-none" : "rounded-b-lg"
+                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                 )}
             >
                 <div className="flex items-center space-x-1.5 opacity-80">
@@ -517,28 +533,69 @@ const ChatNodeComponent = ({
                         style={{ backgroundColor: accentColor }} 
                     />
                     <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">
-                        {hasInitialImageContext ? 'Context + Image added' : 'Context added'}
+                        {contextFeedback ?? (hasInitialImageContext ? 'Context + Image added' : 'Context added')}
                     </span>
                 </div>
             </div>
+            {messageMenu && (
+                <div
+                    data-no-drag
+                    className={clsx(
+                        "fixed z-[2500] min-w-44 border border-[#1b2b33]/20 bg-[#fffdf7] p-1.5 shadow-[0_10px_24px_rgba(33,36,41,0.16)]",
+                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                    )}
+                    style={{ left: messageMenu.x, top: messageMenu.y }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                >
+                    <button
+                        className={clsx(
+                            "mb-1 flex h-8 w-full items-center justify-center gap-1.5 border border-transparent bg-transparent px-2 text-[11px] font-semibold text-[#22363f] hover:bg-[#edf5f8]",
+                            sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
+                        )}
+                        onClick={() => {
+                            onBranchFromMessage(messageMenu.index);
+                            setMessageMenu(null);
+                        }}
+                    >
+                        <GitBranchPlus size={13} />
+                        Branch
+                    </button>
+                    <button
+                        className={clsx(
+                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
+                        )}
+                        onClick={() => deleteMessagesAbove(messageMenu.index)}
+                    >
+                        Delete Above
+                    </button>
+                    <button
+                        className={clsx(
+                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
+                        )}
+                        onClick={() => deleteMessagesBelow(messageMenu.index)}
+                    >
+                        Delete Below
+                    </button>
+                    <button
+                        className={clsx(
+                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#9f1d16] hover:bg-[#fff1ee]",
+                            sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
+                        )}
+                        onClick={() => removeSingleMessage(messageMenu.index)}
+                    >
+                        Delete This
+                    </button>
+                </div>
+            )}
         </div>
     );
-};
-
-const sameSelectedContext = (prev: Node[] = [], next: Node[] = []) => {
-    if (prev.length !== next.length) return false;
-    for (let i = 0; i < prev.length; i += 1) {
-        if (prev[i] !== next[i]) return false;
-    }
-    return true;
 };
 
 export const ChatNode = React.memo(ChatNodeComponent, (prev, next) => (
     prev.node === next.node &&
     prev.activeContextId === next.activeContextId &&
-    prev.isSelected === next.isSelected &&
-    prev.isExiting === next.isExiting &&
     prev.isBeautifulUI === next.isBeautifulUI &&
-    prev.sharpEdges === next.sharpEdges &&
-    sameSelectedContext(prev.selectedNodesContext, next.selectedNodesContext)
+    prev.sharpEdges === next.sharpEdges
 ));
