@@ -45,4 +45,5 @@ export type ContextItem = {
 export type CanvasState = {
     nodes: Node[];
     connections: Connection[];
+    contextBuffer?: ContextItem[];
 };

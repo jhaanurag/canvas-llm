@@ -20,12 +20,16 @@
 - chat bubble toggle transparency on non hover or forced
 
 - rerender fix (optimize or make a svelte version) 
-- make it fullstack
-- that means the canvas, chats are stored and restored, exxcept the images for now,
+- [x] make it fullstack
+- [x] that means the canvas, chats are stored and restored, exxcept the images for now,
+    - Added `/api/canvas-state` GET/POST persistence endpoint.
+    - Added autosave/restore in `InfiniteCanvas` with image attachments stripped from persisted payloads.
 
 - 
-- unsaved to restore
-- ui spacing fixx and consitentcy fix and anim fix
+- [x] unsaved to restore
+    - Added draft fallback restore from `localStorage` (`canvas-unsaved-state`) when server state is unavailable.
+- [x] ui spacing fixx and consitentcy fix and anim fix
+    - Tightened top dock/context sizing and standardized paddings across top controls and node headers.
 - non project realted animeted cursor in vscode and transprnet and cursive
 - colour coding or clustering virtualization no priority
 - tags

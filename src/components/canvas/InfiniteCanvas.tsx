@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Node, Connection, Message } from '@/types';
+import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
@@ -25,7 +25,7 @@ export const InfiniteCanvas = () => {
     const [activeTool, setActiveTool] = useState('select');
     const [activeContextId, setActiveContextId] = useState<string | null>(null);
     const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
-    const [contextBuffer, setContextBuffer] = useState<import('@/types').ContextItem[]>([]);
+    const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
     const [isBeautifulUI, setIsBeautifulUI] = useState(false);
@@ -37,6 +37,7 @@ export const InfiniteCanvas = () => {
     const [gridColor, setGridColor] = useState('#1b2b33');
     const [textColor, setTextColor] = useState('#1b2b33');
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
+    const [canvasStateLoaded, setCanvasStateLoaded] = useState(false);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
@@ -71,6 +72,8 @@ export const InfiniteCanvas = () => {
     const lastPanPointRef = useRef({ x: 0, y: 0 });
     const lastSelectionRef = useRef('');
     const isSpacePanningRef = useRef(false);
+    const saveTimerRef = useRef<number | null>(null);
+    const lastSavedSnapshotRef = useRef('');
 
     useEffect(() => {
         offsetRef.current = offset;
@@ -88,6 +91,15 @@ export const InfiniteCanvas = () => {
         return () => {
             if (panFrameRef.current !== null) {
                 cancelAnimationFrame(panFrameRef.current);
+            }
+            if (toastTimerRef.current !== null) {
+                clearTimeout(toastTimerRef.current);
+            }
+            if (toastExitRef.current !== null) {
+                clearTimeout(toastExitRef.current);
+            }
+            if (saveTimerRef.current !== null) {
+                clearTimeout(saveTimerRef.current);
             }
         };
     }, []);
@@ -150,6 +162,117 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-text-color', textColor);
         window.localStorage.setItem('canvas-dock-position', dockPosition);
     }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition]);
+
+    const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
+        nodes: state.nodes.map((node) => ({
+            ...node,
+            messages: node.messages.map((message) => ({
+                ...message,
+                attachments: undefined,
+            })),
+            initialAttachments: undefined,
+        })),
+        connections: state.connections,
+        contextBuffer: (state.contextBuffer ?? []).map(({ id, text, sourceNodeId }) => ({
+            id,
+            text,
+            sourceNodeId,
+        })),
+    }), []);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const applyState = (nextState: CanvasState) => {
+            const sanitized = sanitizeStateForStorage(nextState);
+            setNodes(sanitized.nodes);
+            setConnections(sanitized.connections);
+            setContextBuffer(sanitized.contextBuffer ?? []);
+            lastSavedSnapshotRef.current = JSON.stringify(sanitized);
+        };
+
+        const restoreDraft = () => {
+            const draftRaw = window.localStorage.getItem('canvas-unsaved-state');
+            if (!draftRaw) return false;
+            try {
+                const draft = JSON.parse(draftRaw) as CanvasState;
+                if (!cancelled) {
+                    applyState(draft);
+                    showToast('Restored unsaved draft');
+                }
+                return true;
+            } catch {
+                window.localStorage.removeItem('canvas-unsaved-state');
+                return false;
+            }
+        };
+
+        const loadCanvasState = async () => {
+            try {
+                const response = await fetch('/api/canvas-state', { cache: 'no-store' });
+                if (!response.ok) throw new Error('Failed to fetch state');
+                const serverState = await response.json() as CanvasState;
+                const hasServerState = serverState.nodes.length > 0 || serverState.connections.length > 0 || (serverState.contextBuffer?.length ?? 0) > 0;
+                if (hasServerState) {
+                    if (!cancelled) {
+                        applyState(serverState);
+                        showToast('Restored saved canvas');
+                    }
+                    return;
+                }
+                restoreDraft();
+            } catch {
+                restoreDraft();
+            } finally {
+                if (!cancelled) {
+                    setCanvasStateLoaded(true);
+                }
+            }
+        };
+
+        loadCanvasState();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [sanitizeStateForStorage, showToast]);
+
+    const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
+        nodes,
+        connections,
+        contextBuffer,
+    }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
+
+    useEffect(() => {
+        if (!canvasStateLoaded) return;
+        if (saveTimerRef.current !== null) {
+            clearTimeout(saveTimerRef.current);
+        }
+        const snapshot = JSON.stringify(persistedCanvasState);
+        if (snapshot === lastSavedSnapshotRef.current) return;
+
+        saveTimerRef.current = window.setTimeout(async () => {
+            window.localStorage.setItem('canvas-unsaved-state', snapshot);
+            try {
+                const response = await fetch('/api/canvas-state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: snapshot,
+                });
+                if (!response.ok) throw new Error('Failed to save');
+                lastSavedSnapshotRef.current = snapshot;
+                window.localStorage.removeItem('canvas-unsaved-state');
+            } catch (error) {
+                console.error('Canvas state save failed:', error);
+            }
+        }, 700);
+
+        return () => {
+            if (saveTimerRef.current !== null) {
+                clearTimeout(saveTimerRef.current);
+            }
+        };
+    }, [canvasStateLoaded, persistedCanvasState]);
 
     // Global selection listener for better reliability
     useEffect(() => {
@@ -534,13 +657,14 @@ export const InfiniteCanvas = () => {
     }, [nodes, connections, addNode, contextBuffer, worldToScreen, showToast]);
 
     useEffect(() => {
+        if (!canvasStateLoaded) return;
         if (nodes.length === 0) {
             const timer = window.setTimeout(() => {
                 addNode('chat', window.innerWidth / 2 - 200, window.innerHeight / 2 - 250);
             }, 0);
             return () => window.clearTimeout(timer);
         }
-    }, [addNode, nodes.length]);
+    }, [addNode, canvasStateLoaded, nodes.length]);
 
     useEffect(() => {
         const isTextEntryTarget = (target: EventTarget | null) =>
@@ -1198,6 +1322,21 @@ export const InfiniteCanvas = () => {
                     </div>
                 </div>
             </div>
+
+            {toast && (
+                <div
+                    data-ui-overlay
+                    className={clsx(
+                        "pointer-events-none fixed left-1/2 z-[2100] -translate-x-1/2 border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-all duration-300 ease-out",
+                        sharpEdges ? "rounded-none" : "rounded-[10px]",
+                        dockPosition === 'top' ? "top-[6.1rem]" : "bottom-[6.1rem]",
+                        toast.visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"
+                    )}
+                    style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}40` }}
+                >
+                    {toast.message}
+                </div>
+            )}
 
             {isBeautifulUI && (
                 <div className={clsx(
