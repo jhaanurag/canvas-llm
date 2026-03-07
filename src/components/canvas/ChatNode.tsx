@@ -104,6 +104,7 @@ const ChatNodeComponent = ({
     const showChrome = isHovered || isDragging || isEditingTitle;
     const isActive = showChrome || input || attachedFiles.length > 0;
     const dimBubbles = bubbleTransparencyMode === 'auto' && !showChrome;
+    const hasInitialImageContext = Boolean(node.initialAttachments?.some((file) => file.mimeType.startsWith('image/')));
 
     useEffect(() => {
         const viewport = messagesViewportRef.current;
@@ -524,7 +525,7 @@ const ChatNodeComponent = ({
             <div
                 className={clsx(
                     "absolute left-4 px-3 py-1 border border-[#1b2b33]/20 shadow-sm pointer-events-none transition-all duration-300 ease-out z-0 bg-[#fffdf7]",
-                    isBeautifulUI && node.hasInitialContext && node.messages.length === 0
+                    node.hasInitialContext && node.messages.length === 0
                         ? "opacity-100 top-[calc(100%-4px)]"
                         : "opacity-0 top-[calc(100%-16px)] pointer-events-none",
                     sharpEdges ? "rounded-none" : "rounded-b-lg"
@@ -536,7 +537,7 @@ const ChatNodeComponent = ({
                         style={{ backgroundColor: accentColor }} 
                     />
                     <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">
-                        Context added
+                        {hasInitialImageContext ? 'Context + Image added' : 'Context added'}
                     </span>
                 </div>
             </div>
