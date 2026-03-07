@@ -119,7 +119,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                         <GripVertical size={14} className="text-[#1b2b33]/70" />
                         <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#22363f]">Note</span>
                     </div>
-                    <div className="flex gap-2 items-center">
+                    <div className="flex items-center gap-1.5">
                         <Button
                             data-no-drag
                             size="icon"

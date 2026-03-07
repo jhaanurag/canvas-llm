@@ -173,7 +173,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#eef5f8]/90 px-2.5 active:cursor-grabbing",
+                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#eef5f8]/90 px-3.5 active:cursor-grabbing",
                         isBeautifulUI && motionClass,
                         (isHovered || isDragging || isSelected) ? "opacity-100" : "opacity-0"
                     )}
@@ -226,7 +226,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                     onPointerUp={stopDrawing}
                     onPointerCancel={stopDrawing}
                     className={clsx(
-                        "block cursor-crosshair",
+                        "block cursor-crosshair transition-colors duration-150 ease-out",
                         canvasRadiusClass,
                         isBeautifulUI && motionClass,
                         (isHovered || isDragging || isSelected)

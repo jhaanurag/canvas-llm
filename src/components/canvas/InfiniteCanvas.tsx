@@ -605,7 +605,9 @@ export const InfiniteCanvas = () => {
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
             : "border-[#776a54]/45 bg-[#f5eddc] hover:border-[#2f5664]"
     );
-    const dockPanelWidthClass = "w-full max-w-[min(100vw-1.5rem,78rem)]";
+    const dockSettingsWidthClass = "w-full max-w-[min(100vw-1.5rem,78rem)]";
+    const dockContextWidthClass = "w-fit max-w-[min(100vw-1.5rem,74rem)]";
+    const dockMenuWidthClass = "w-fit max-w-[calc(100vw-1.5rem)]";
     const dockContainerPositionClass = dockPosition === 'top'
         ? "top-3 pb-2 pt-[max(env(safe-area-inset-top),0px)]"
         : "bottom-3 pb-[max(env(safe-area-inset-bottom),0px)]";
@@ -807,7 +809,7 @@ export const InfiniteCanvas = () => {
                     <div
                         className={clsx(
                             "pointer-events-auto border border-[#1b2b33]/25 px-3.5 py-3",
-                            dockPanelWidthClass,
+                            dockSettingsWidthClass,
                             dockSettingsOrderClass,
                             panelRadiusClass,
                             beautifulAppearClass,
@@ -1004,8 +1006,8 @@ export const InfiniteCanvas = () => {
                 {contextBuffer.length > 0 && (
                     <div
                         className={clsx(
-                            "pointer-events-auto border px-3 py-3",
-                            dockPanelWidthClass,
+                            "pointer-events-auto border px-3 py-2.5 transition-[max-width,padding] duration-200 ease-out",
+                            dockContextWidthClass,
                             dockContextOrderClass,
                             panelRadiusClass,
                             beautifulAppearClass,
@@ -1018,7 +1020,7 @@ export const InfiniteCanvas = () => {
                     >
                         <div className="flex items-center gap-2">
                             <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#486069]">Context:</span>
-                            <div className="flex max-w-[min(58vw,40rem)] items-center gap-2 overflow-x-auto pb-0.5">
+                            <div className="flex max-w-[min(62vw,42rem)] items-center gap-2 overflow-x-auto pb-0.5">
                                 {contextBuffer.map(item => {
                                     const words = item.text.trim().split(/\s+/).filter(w => w.length > 0);
                                     const firstWords = words.slice(0, 2).join(' ');
@@ -1031,7 +1033,7 @@ export const InfiniteCanvas = () => {
                                             key={item.id}
                                             onClick={() => removeFromContext(item.id)}
                                             className={clsx(
-                                                "flex h-8 shrink-0 items-center gap-1 border px-3 text-[11px] hover:border-red-500/40 hover:text-red-700 hover:line-through",
+                                                "flex h-8 shrink-0 items-center gap-1 border px-2.5 text-[11px] hover:border-red-500/40 hover:text-red-700 hover:line-through",
                                                 sharpEdges ? "rounded-none" : "rounded-[10px]",
                                                 isBeautifulUI
                                                     ? "border-[#1b2b33]/25 bg-[#fffaf2] text-[#1b2b33]"
@@ -1069,8 +1071,8 @@ export const InfiniteCanvas = () => {
 
                 <div
                     className={clsx(
-                        "pointer-events-auto",
-                        dockPanelWidthClass,
+                        "pointer-events-auto transition-[max-width,padding] duration-200 ease-out",
+                        dockMenuWidthClass,
                         dockMenuOrderClass,
                         beautifulAppearClass,
                         isBeautifulUI
@@ -1080,7 +1082,7 @@ export const InfiniteCanvas = () => {
                     style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                 >
                     <div className="overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="flex w-max min-w-full items-center justify-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+                        <div className="flex w-max items-center justify-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
                             {isBeautifulUI && (
                                 <div className={clsx(
                                     "inline-flex h-10 items-center border px-3 text-[11px] font-semibold tracking-[0.14em]",
