@@ -8,13 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets, GitBranchPlus } from 'lucide-react';
+import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets, GitBranchPlus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
     node: Node;
-    activeContextId?: string | null;
-    setActiveContextId: (id: string | null) => void;
     updatePos: (x: number, y: number) => void;
     updateMessages: (messages: Message[]) => void;
     updateTitle: (title: string) => void;
@@ -31,8 +29,6 @@ interface ChatNodeProps {
 
 const ChatNodeComponent = ({
     node,
-    activeContextId,
-    setActiveContextId,
     updatePos,
     updateMessages,
     updateTitle,
@@ -57,6 +53,16 @@ const ChatNodeComponent = ({
         '--node-accent-70': `${accentColor}b3`,
         '--node-accent-dark': accentColor, // optionally darken
     } as React.CSSProperties;
+    const accentTextColor = React.useMemo(() => {
+        const hex = accentColor.replace('#', '');
+        if (hex.length !== 6) return '#f8fffd';
+        const r = Number.parseInt(hex.slice(0, 2), 16);
+        const g = Number.parseInt(hex.slice(2, 4), 16);
+        const b = Number.parseInt(hex.slice(4, 6), 16);
+        if ([r, g, b].some(Number.isNaN)) return '#f8fffd';
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return luminance > 150 ? '#1b2b33' : '#f8fffd';
+    }, [accentColor]);
 
     const [input, setInput] = useState(node.initialPrompt || '');
 
@@ -67,7 +73,8 @@ const ChatNodeComponent = ({
             setTimeout(() => {
                 if (inputRef.current) {
                     inputRef.current.focus();
-                    inputRef.current.setSelectionRange(0, 0);
+                    const end = node.initialPrompt.length;
+                    inputRef.current.setSelectionRange(end, end);
                 }
             }, 10);
         }
@@ -91,6 +98,8 @@ const ChatNodeComponent = ({
     const [messageMenu, setMessageMenu] = useState<{ index: number; x: number; y: number } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
+    const nodeShellRef = useRef<HTMLDivElement>(null);
+    const messageMenuRef = useRef<HTMLDivElement>(null);
 
 
 
@@ -217,16 +226,20 @@ const ChatNodeComponent = ({
 
     useEffect(() => {
         if (!messageMenu) return;
-        const closeMenu = () => setMessageMenu(null);
+        const closeMenu = (event: PointerEvent) => {
+            const target = event.target as Node | null;
+            if (target && messageMenuRef.current?.contains(target)) return;
+            setMessageMenu(null);
+        };
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 setMessageMenu(null);
             }
         };
-        window.addEventListener('pointerdown', closeMenu);
+        document.addEventListener('pointerdown', closeMenu, true);
         window.addEventListener('keydown', handleKeyDown);
         return () => {
-            window.removeEventListener('pointerdown', closeMenu);
+            document.removeEventListener('pointerdown', closeMenu, true);
             window.removeEventListener('keydown', handleKeyDown);
         };
     }, [messageMenu]);
@@ -246,8 +259,23 @@ const ChatNodeComponent = ({
         setMessageMenu(null);
     };
 
+    const openMessageMenu = (index: number, clientX: number, clientY: number) => {
+        const shell = nodeShellRef.current;
+        if (!shell) return;
+        const shellRect = shell.getBoundingClientRect();
+        const menuWidth = 196;
+        const menuHeight = 176;
+        const padding = 12;
+        const localX = clientX - shellRect.left;
+        const localY = clientY - shellRect.top;
+        const nextX = Math.min(localX + 8, shellRect.width - menuWidth - padding);
+        const nextY = Math.min(localY + 8, shellRect.height - menuHeight - padding);
+        setMessageMenu({ index, x: Math.max(padding, nextX), y: Math.max(padding, nextY) });
+    };
+
     return (
         <div
+            ref={nodeShellRef}
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,
@@ -263,11 +291,9 @@ const ChatNodeComponent = ({
             }}
             onMouseEnter={() => {
                 setIsHovered(true);
-                if (node.parentId) setActiveContextId(node.parentId);
             }}
             onMouseLeave={() => {
                 setIsHovered(false);
-                setActiveContextId(null);
             }}
             onPointerDown={handlePointerDown}
         >
@@ -377,10 +403,12 @@ const ChatNodeComponent = ({
                     {node.sourceSelection && (
                         <div className={clsx(
                             "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap border-b border-[#1b2b33]/20 p-2 text-[10px] italic font-medium",
-                            (isHovered || isDragging) ? "opacity-100" : "opacity-30",
-                            activeContextId === node.parentId ? "text-[#f8fffd]" : "bg-[#f4eee0] text-[#1b2b33]"
+                            (isHovered || isDragging) ? "opacity-100" : "opacity-50",
+                            "bg-[#f4eee0]"
                         )}>
-                            Origin: &quot;{node.sourceSelection}&quot;
+                            <span style={{ color: accentColor }}>
+                                Origin: &quot;{node.sourceSelection}&quot;
+                            </span>
                         </div>
                     )}
 
@@ -418,13 +446,13 @@ const ChatNodeComponent = ({
                                             onContextMenu={(e) => {
                                                 e.preventDefault();
                                                 e.stopPropagation();
-                                                setMessageMenu({ index, x: e.clientX + 8, y: e.clientY + 8 });
+                                                openMessageMenu(index, e.clientX, e.clientY);
                                             }}
                                             className={clsx(
                                                 "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
                                                 dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                 msg.role === 'user'
-                                                    ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "text-[#f8fffd]")
+                                                    ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "")
                                                     : (dimBubbles ? "border-transparent bg-transparent text-[#1b2b33]" : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]"),
                                                 isBeautifulUI && !dimBubbles && "shadow-[0_2px_7px_rgba(33,36,41,0.09)]"
                                             )}
@@ -436,7 +464,7 @@ const ChatNodeComponent = ({
                                                 borderTopRightRadius: sharpEdges ? 0 : 'var(--canvas-radius-md)',
                                                 borderBottomLeftRadius: sharpEdges ? 0 : msg.role === 'user' ? 'var(--canvas-radius-md)' : '4px',
                                                 borderBottomRightRadius: sharpEdges ? 0 : msg.role === 'user' ? '4px' : 'var(--canvas-radius-md)',
-                                                ...(msg.role === 'user' && !dimBubbles ? { backgroundColor: accentColor, borderColor: accentColor } : {}),
+                                                ...(msg.role === 'user' && !dimBubbles ? { backgroundColor: accentColor, borderColor: accentColor, color: accentTextColor } : {}),
                                             }}
                                         >
                                             {msg.attachments && msg.attachments.length > 0 && (
@@ -497,7 +525,7 @@ const ChatNodeComponent = ({
                         }}
                         placeholder="Ask AI..."
                         className={clsx(
-                            "h-10 min-h-10 max-h-10 flex-1 resize-none border bg-[#fffdf7] px-3 py-2 text-sm leading-5 text-[#1b2b33] focus-visible:ring-2",
+                            "h-10 min-h-10 max-h-10 flex-1 resize-none overflow-hidden border bg-[#fffdf7] px-3 py-2 text-sm leading-5 text-[#1b2b33] focus-visible:ring-2",
                             controlRadiusClass,
                             isActive ? "border-[#1b2b33]/28" : "border-transparent"
                         )}
@@ -520,11 +548,12 @@ const ChatNodeComponent = ({
             {/* Context Attached Module */}
             <div
                 className={clsx(
-                    "absolute left-4 z-0 border border-[#1b2b33]/20 bg-[#fffdf7] px-3 py-1 shadow-sm pointer-events-none",
+                    "absolute left-6 z-0 border border-[#1b2b33]/20 px-3 py-1 shadow-sm pointer-events-none",
                     (contextFeedback || (node.hasInitialContext && node.messages.length === 0))
                         ? "opacity-100 top-[calc(100%-4px)]"
                         : "opacity-0 top-[calc(100%-16px)] pointer-events-none",
-                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                    showChrome ? "bg-[#fffdf7]" : "bg-transparent",
+                    sharpEdges ? "rounded-none" : "rounded-b-[var(--canvas-radius-sm)]"
                 )}
             >
                 <div className="flex items-center space-x-1.5 opacity-80">
@@ -539,9 +568,10 @@ const ChatNodeComponent = ({
             </div>
             {messageMenu && (
                 <div
+                    ref={messageMenuRef}
                     data-no-drag
                     className={clsx(
-                        "fixed z-[2500] min-w-44 border border-[#1b2b33]/20 bg-[#fffdf7] p-1.5 shadow-[0_10px_24px_rgba(33,36,41,0.16)]",
+                        "absolute z-[2500] min-w-48 border border-[#1b2b33]/20 bg-[#fffdf7] p-1.5 shadow-[0_10px_24px_rgba(33,36,41,0.16)] backdrop-blur-sm",
                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                     )}
                     style={{ left: messageMenu.x, top: messageMenu.y }}
@@ -549,7 +579,7 @@ const ChatNodeComponent = ({
                 >
                     <button
                         className={clsx(
-                            "mb-1 flex h-8 w-full items-center justify-center gap-1.5 border border-transparent bg-transparent px-2 text-[11px] font-semibold text-[#22363f] hover:bg-[#edf5f8]",
+                            "mb-1 flex h-8 w-full items-center justify-start gap-2 border border-transparent bg-transparent px-2 text-[11px] font-semibold text-[#22363f] hover:bg-[#edf5f8]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => {
@@ -560,31 +590,35 @@ const ChatNodeComponent = ({
                         <GitBranchPlus size={13} />
                         Branch
                     </button>
+                    <div className="my-1 h-px bg-[#1b2b33]/10" />
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => deleteMessagesAbove(messageMenu.index)}
                     >
+                        <ChevronUp size={13} />
                         Delete Above
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => deleteMessagesBelow(messageMenu.index)}
                     >
+                        <ChevronDown size={13} />
                         Delete Below
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start px-2 text-[11px] font-medium text-[#9f1d16] hover:bg-[#fff1ee]",
+                            "mt-1 flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#9f1d16] hover:bg-[#fff1ee]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => removeSingleMessage(messageMenu.index)}
                     >
+                        <Trash2 size={13} />
                         Delete This
                     </button>
                 </div>
@@ -595,7 +629,6 @@ const ChatNodeComponent = ({
 
 export const ChatNode = React.memo(ChatNodeComponent, (prev, next) => (
     prev.node === next.node &&
-    prev.activeContextId === next.activeContextId &&
     prev.isBeautifulUI === next.isBeautifulUI &&
     prev.sharpEdges === next.sharpEdges
 ));

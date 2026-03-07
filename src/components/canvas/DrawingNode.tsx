@@ -239,9 +239,10 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeauti
             </div>
             <div
                 className={clsx(
-                    "absolute left-4 z-0 border border-[#1b2b33]/20 bg-[#fffdf7] px-3 py-1 shadow-sm pointer-events-none",
+                    "absolute left-4 z-0 border border-[#1b2b33]/20 px-3 py-1 shadow-sm pointer-events-none",
                     contextFeedback ? "opacity-100 top-[calc(100%-4px)]" : "opacity-0 top-[calc(100%-16px)]",
-                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                    (isHovered || isDragging) ? "bg-[#fffdf7]" : "bg-transparent",
+                    sharpEdges ? "rounded-none" : "rounded-b-[var(--canvas-radius-sm)]"
                 )}
             >
                 <div className="flex items-center gap-1.5 opacity-80">

@@ -24,7 +24,6 @@ export const InfiniteCanvas = () => {
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [activeTool, setActiveTool] = useState('select');
-    const [activeContextId, setActiveContextId] = useState<string | null>(null);
     const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
@@ -653,7 +652,7 @@ export const InfiniteCanvas = () => {
         window.setTimeout(() => {
             setNodes((prev) => prev.map((entry) => entry.id === branchedNode.id ? {
                 ...entry,
-                initialPrompt: `Continue from this point in the conversation:\n\n${transcript}\n\nNext message:`,
+                initialPrompt: `\n\nContext:\n"${transcript}"`,
                 hasInitialContext: true,
             } : entry));
         }, 100);
@@ -821,40 +820,16 @@ export const InfiniteCanvas = () => {
     const panelRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
     const segmentRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-md)]';
     const segmentButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
-    const nodeById = useMemo(() => {
-        const map = new Map<string, Node>();
-        for (const node of nodes) map.set(node.id, node);
-        return map;
-    }, [nodes]);
-
-    const renderedConnections = useMemo(() => (
-        connections.map((conn) => {
-            const from = nodeById.get(conn.fromId);
-            const to = nodeById.get(conn.toId);
-            if (!from || !to) return null;
-
-            const x1 = from.x + from.width / 2;
-            const y1 = from.y + from.height / 2;
-            const x2 = to.x + to.width / 2;
-            const y2 = to.y + to.height / 2;
-            const dx = (x2 - x1) / 2;
-            const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
-
-            return (
-                <path
-                    key={conn.id}
-                    d={d}
-                    fill="transparent"
-                    stroke={activeContextId === from.id ? accentColor : '#206679'}
-                    strokeWidth="2"
-                    strokeDasharray={to.type === 'chat' ? 'none' : '4,4'}
-                    markerEnd="url(#arrow-brand)"
-                    style={{ opacity: activeContextId === from.id ? 1 : 0.24 }}
-                />
-            );
-        })
-    ), [activeContextId, accentColor, connections, nodeById]);
-
+    const accentTextColor = useMemo(() => {
+        const hex = accentColor.replace('#', '');
+        if (hex.length !== 6) return '#f8fffd';
+        const r = Number.parseInt(hex.slice(0, 2), 16);
+        const g = Number.parseInt(hex.slice(2, 4), 16);
+        const b = Number.parseInt(hex.slice(4, 6), 16);
+        if ([r, g, b].some(Number.isNaN)) return '#f8fffd';
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        return luminance > 150 ? '#1b2b33' : '#f8fffd';
+    }, [accentColor]);
     const renderedNodes = useMemo(() => (
         nodes.map((node) => {
             if (node.type === 'chat') {
@@ -862,8 +837,6 @@ export const InfiniteCanvas = () => {
                     <ChatNode
                         key={node.id}
                         node={node}
-                        activeContextId={activeContextId}
-                        setActiveContextId={setActiveContextId}
                         updatePos={(x, y) => updateNodePos(node.id, x, y)}
                         updateMessages={(msgs) => updateNodeMessages(node.id, msgs)}
                         updateTitle={(title) => updateNodeTitle(node.id, title)}
@@ -914,7 +887,6 @@ export const InfiniteCanvas = () => {
             return null;
         })
     ), [
-        activeContextId,
         accentColor,
         addToContext,
         branchFromChatMessage,
@@ -923,7 +895,6 @@ export const InfiniteCanvas = () => {
         nodes,
         isBeautifulUI,
         sharpEdges,
-        setActiveContextId,
         setGlobalSelection,
         updateNodeContent,
         updateNodeSystemPrompt,
@@ -1047,19 +1018,18 @@ export const InfiniteCanvas = () => {
                     addNode('note', e.clientX, e.clientY);
                 }
             }}
-            style={{ ...cssVars, cursor: isPanning ? 'grabbing' : (isSpacePanning || activeTool === 'hand' ? 'grab' : 'default') }}
-        >
-            {isBeautifulUI && (
-                <div
-                    className="pointer-events-none absolute inset-0"
-                    style={{
-                        backgroundImage:
-                            `linear-gradient(${gridLineColor} 1px, transparent 1px), linear-gradient(90deg, ${gridLineColor} 1px, transparent 1px)`,
+            style={{
+                ...cssVars,
+                cursor: isPanning ? 'grabbing' : (isSpacePanning || activeTool === 'hand' ? 'grab' : 'default'),
+                ...(isBeautifulUI
+                    ? {
+                        backgroundImage: `linear-gradient(${gridLineColor} 1px, transparent 1px), linear-gradient(90deg, ${gridLineColor} 1px, transparent 1px)`,
                         backgroundPosition: `${offset.x}px ${offset.y}px`,
-                        backgroundSize: `${gridResolution * 2}px ${gridResolution * 2}px`
-                    }}
-                />
-            )}
+                        backgroundSize: `${gridResolution * 2}px ${gridResolution * 2}px`,
+                    }
+                    : {})
+            }}
+        >
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>
                 {showCanvasSettings && (
@@ -1390,13 +1360,13 @@ export const InfiniteCanvas = () => {
                         dockMenuWidthClass,
                         dockMenuOrderClass,
                         isBeautifulUI
-                            ? ["border border-[#1b2b33]/25 px-3 py-3", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
+                            ? ["border border-[#1b2b33]/25 px-3 py-2.5", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
                             : "px-0 py-0"
                     )}
                     style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                 >
                     <div className="hover-scroll-x overflow-x-auto whitespace-nowrap">
-                        <div className="flex w-max items-center justify-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+                        <div className="flex w-max items-center justify-center gap-2" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
                             {isBeautifulUI && (
                                 <div className={clsx(
                                     "inline-flex h-10 items-center gap-1.5 border px-3 text-[11px] font-semibold tracking-[0.14em]",
@@ -1420,12 +1390,12 @@ export const InfiniteCanvas = () => {
                                     showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'select'
-                                        ? "text-[#f8fffd]"
+                                        ? ""
                                         : "text-[#1b2b33] hover:bg-[#e9dcc4]"
                                 )}
                                 onClick={() => setActiveTool('select')}
                                 title="Select mode"
-                                style={activeTool === 'select' ? { backgroundColor: accentColor } : { color: textColor }}
+                                style={activeTool === 'select' ? { backgroundColor: accentColor, color: accentTextColor } : { color: textColor }}
                             >
                                 <MousePointer2 size={13} />
                                 {showButtonLabels && <span>Select</span>}
@@ -1436,12 +1406,12 @@ export const InfiniteCanvas = () => {
                                     showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'hand'
-                                        ? "text-[#f8fffd]"
+                                        ? ""
                                         : "text-[#1b2b33] hover:bg-[#e9dcc4]"
                                 )}
                                 onClick={() => setActiveTool('hand')}
                                 title="Hand mode"
-                                style={activeTool === 'hand' ? { backgroundColor: accentColor } : { color: textColor }}
+                                style={activeTool === 'hand' ? { backgroundColor: accentColor, color: accentTextColor } : { color: textColor }}
                             >
                                 <Hand size={13} />
                                 {showButtonLabels && <span>Pan</span>}
@@ -1529,10 +1499,6 @@ export const InfiniteCanvas = () => {
                         handleBranch(globalSelection.nodeId, globalSelection.text, 'expand', globalSelection.x, globalSelection.y, undefined, true);
                         setGlobalSelection(null);
                     }}
-                    onCustomAsk={(prompt: string) => {
-                        handleBranch(globalSelection.nodeId, globalSelection.text, 'custom', globalSelection.x, globalSelection.y, prompt, true);
-                        setGlobalSelection(null);
-                    }}
                     onAddToContext={() => {
                         addToContext(globalSelection.text, globalSelection.nodeId);
                         setGlobalSelection(null);
@@ -1547,14 +1513,6 @@ export const InfiniteCanvas = () => {
                 className="absolute inset-0"
                 style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0px)`, willChange: 'transform' }}
             >
-                <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
-                    <defs>
-                        <marker id="arrow-brand" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                            <path d="M 0 0 L 10 5 L 0 10 z" fill={accentColor} />
-                        </marker>
-                    </defs>
-                    {renderedConnections}
-                </svg>
                 {renderedNodes}
             </div>
         </div>

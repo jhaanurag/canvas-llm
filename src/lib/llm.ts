@@ -1,7 +1,8 @@
 
 import { GoogleGenAI } from '@google/genai';
 
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyB3d2RSwGrBrCLniPc-hATfgf0WqskpzLY';
+// API key must be provided via environment variable
+const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY!;
 
 // Using the pattern provided in the prompt docs
 
@@ -57,7 +58,7 @@ export async function* streamGeminiResponse(
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": "Bearer sk-anything"
+                "Authorization": `Bearer ${process.env.LLM_PROXY_KEY}`
             },
             body: JSON.stringify(body)
         });
