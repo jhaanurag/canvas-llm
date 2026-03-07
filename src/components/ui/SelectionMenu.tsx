@@ -22,7 +22,7 @@ interface SelectionMenuProps {
 export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onExpand, onCustomAsk, onAddToContext, onClose }: SelectionMenuProps) => {
     const [isCustom, setIsCustom] = useState(false);
     const [customPrompt, setCustomPrompt] = useState('');
-    const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
+    const motionClass = 'transition-opacity duration-120 ease-out';
     const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
     const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
 

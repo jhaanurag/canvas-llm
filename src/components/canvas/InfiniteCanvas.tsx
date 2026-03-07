@@ -792,7 +792,7 @@ export const InfiniteCanvas = () => {
     }, [addNode, getNextSpawnScreenPoint]);
 
     const dockButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide transition-all duration-200",
+        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide",
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
@@ -800,7 +800,7 @@ export const InfiniteCanvas = () => {
             : "border-transparent bg-transparent hover:bg-[#eadfcb]"
     );
     const dockSettingsButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none transition-all duration-200",
+        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none",
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
@@ -817,7 +817,7 @@ export const InfiniteCanvas = () => {
     const dockContextOrderClass = 'order-2';
     const dockSettingsOrderClass = dockPosition === 'top' ? 'order-3' : 'order-1';
     const minimapPositionClass = dockPosition === 'bottom' ? 'bottom-[8.25rem]' : 'bottom-4';
-    const beautifulAppearClass = isBeautifulUI ? 'transition-all duration-220 ease-out' : '';
+    const beautifulAppearClass = isBeautifulUI ? 'transition-opacity duration-120 ease-out' : '';
     const gridLineColor = useMemo(() => {
         const hex = gridColor.replace('#', '');
         if (hex.length !== 6) return 'rgba(27, 43, 51, 0.1)';
@@ -1323,7 +1323,7 @@ export const InfiniteCanvas = () => {
                 {contextBuffer.length > 0 && (
                     <div
                         className={clsx(
-                            "pointer-events-auto border px-3 py-2.5 transition-[max-width,padding] duration-200 ease-out",
+                            "pointer-events-auto border px-3 py-2.5",
                             dockContextWidthClass,
                             dockContextOrderClass,
                             panelRadiusClass,
@@ -1391,7 +1391,7 @@ export const InfiniteCanvas = () => {
 
                 <div
                     className={clsx(
-                        "pointer-events-auto relative z-[2100] transition-[max-width,padding] duration-200 ease-out",
+                        "pointer-events-auto relative z-[2100]",
                         dockMenuWidthClass,
                         dockMenuOrderClass,
                         beautifulAppearClass,
@@ -1422,7 +1422,7 @@ export const InfiniteCanvas = () => {
                             )}>
                             <button
                                 className={clsx(
-                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold transition-all duration-200",
+                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold",
                                     showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'select'
@@ -1438,7 +1438,7 @@ export const InfiniteCanvas = () => {
                             </button>
                             <button
                                 className={clsx(
-                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold transition-all duration-200",
+                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold",
                                     showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'hand'
@@ -1475,9 +1475,9 @@ export const InfiniteCanvas = () => {
                 <div
                     data-ui-overlay
                     className={clsx(
-                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-all duration-300 ease-out",
+                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-opacity duration-120 ease-out",
                         sharpEdges ? "rounded-none" : "rounded-[10px]",
-                        toast.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
+                        toast.visible ? "opacity-100" : "opacity-0"
                     )}
                     style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}40` }}
                 >

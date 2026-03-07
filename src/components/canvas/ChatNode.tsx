@@ -52,7 +52,7 @@ const ChatNodeComponent = ({
     accentColor = '#0f766e',
     selectedNodesContext = []
 }: ChatNodeProps) => {
-    const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
+    const motionClass = 'transition-opacity duration-120 ease-out';
     const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
     const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
     const headerButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[8px]';
@@ -232,10 +232,10 @@ const ChatNodeComponent = ({
                 "absolute pointer-events-auto",
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
-                isBeautifulUI && activeContextId === node.id ? "scale-[1.01]" : "",
+                isBeautifulUI && "animate-in fade-in-0 duration-120",
                 isSelected && showChrome && !isDragging ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing",
-                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0 scale-[0.97] translate-y-2" : "opacity-100 scale-100 translate-y-0")
+                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0" : "opacity-100")
             )}
             style={{
                 left: node.x,
@@ -504,7 +504,7 @@ const ChatNodeComponent = ({
             {/* Context Attached Module */}
             <div
                 className={clsx(
-                    "absolute left-4 px-3 py-1 border border-[#1b2b33]/20 shadow-sm pointer-events-none transition-all duration-300 ease-out z-0 bg-[#fffdf7]",
+                    "absolute left-4 px-3 py-1 border border-[#1b2b33]/20 shadow-sm pointer-events-none transition-opacity duration-120 ease-out z-0 bg-[#fffdf7]",
                     node.hasInitialContext && node.messages.length === 0
                         ? "opacity-100 top-[calc(100%-4px)]"
                         : "opacity-0 top-[calc(100%-16px)] pointer-events-none",

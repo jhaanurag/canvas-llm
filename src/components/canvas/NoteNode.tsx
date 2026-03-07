@@ -26,7 +26,7 @@ interface NoteNodeProps {
 }
 
 const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect, onMouseDown, isSelected, isExiting = false, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', setGlobalSelection, onAddToContext }: NoteNodeProps) => {
-    const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
+    const motionClass = 'transition-opacity duration-120 ease-out';
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [isHovered, setIsHovered] = useState(false);
@@ -82,9 +82,10 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                 "absolute pointer-events-auto",
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
+                isBeautifulUI && "animate-in fade-in-0 duration-120",
                 isSelected && !isDragging ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing",
-                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0 scale-[0.97] translate-y-2" : "opacity-100 scale-100 translate-y-0")
+                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0" : "opacity-100")
             )}
             style={{
                 left: node.x,
