@@ -43,6 +43,7 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
                 isBeautifulUI && "shadow-[0_8px_18px_rgba(33,36,41,0.2)]"
             )}
             style={{ left: x, top: y, ...cssVars }}
+            onPointerDown={(e) => e.stopPropagation()}
         >
             {!isCustom ? (
                 <>
@@ -94,14 +95,17 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
                         value={customPrompt}
                         onChange={(e) => setCustomPrompt(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter') onCustomAsk(customPrompt);
+                            if (e.key === 'Enter') {
+                                e.preventDefault();
+                                onCustomAsk(customPrompt.trim());
+                            }
                             if (e.key === 'Escape') setIsCustom(false);
                         }}
                     />
                     <Button
                         size="sm"
                         className={clsx("h-8 bg-[color:var(--node-accent)] px-4 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#f8fffd] hover:bg-[color:var(--node-accent-dark)]", controlRadiusClass, isBeautifulUI && motionClass)}
-                        onClick={() => onCustomAsk(customPrompt)}
+                        onClick={() => onCustomAsk(customPrompt.trim())}
                     >
                         Send
                     </Button>

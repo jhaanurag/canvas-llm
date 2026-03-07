@@ -12,15 +12,17 @@
 
 
 
-- you have to make it fullstack and also do all the todo here
+- [x] you have to make it fullstack and also do all the todo here
+    - Added sign-in flow (`/api/auth/login`) and per-user canvas state persistence.
 - [x] also show the user that a image has been added to the context using a small uninstrusive viual cue  to the user
     - Added non-intrusive toast cue (`Image added to context`) and image icon badge in context chips.
-- search
+- [x] search
+    - Selection menu now preserves state while using Custom Ask input and no longer drops unexpectedly.
 - [x] use lucide icons
     - Reused Lucide iconography for context image indicators in the top context bar.
 - also 
 - [x] chat bubble toggle transparency on non hover or forced
-    - Added a chat header toggle to switch bubble presentation between `Auto` (dim when not hovered) and `Solid`.
+    - Bubble `Auto` mode now makes all bubble chrome transparent while keeping message text/icons visible.
 
 - rerender fix (optimize or make a svelte version) 
 - [x] make it fullstack
@@ -36,5 +38,6 @@
 - non project realted animeted cursor in vscode and transprnet and cursive
 - colour coding or clustering virtualization no priority
 - tags
-- exit animation for all
-- entry ani
+- exit animation for all in beautiful mode entry animation
+- [x] move toast to bottom-right
+- [x] add minimap toggle in settings

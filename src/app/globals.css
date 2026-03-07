@@ -158,4 +158,31 @@
     letter-spacing: -0.03em;
     text-transform: uppercase;
   }
+
+  .hover-scroll-x {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hover-scroll-x::-webkit-scrollbar {
+    height: 0;
+  }
+
+  .hover-scroll-x:hover {
+    scrollbar-width: thin;
+  }
+
+  .hover-scroll-x:hover::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .hover-scroll-x:hover::-webkit-scrollbar-track {
+    background: rgba(27, 43, 51, 0.1);
+    border-radius: 999px;
+  }
+
+  .hover-scroll-x:hover::-webkit-scrollbar-thumb {
+    background: rgba(27, 43, 51, 0.38);
+    border-radius: 999px;
+  }
 }

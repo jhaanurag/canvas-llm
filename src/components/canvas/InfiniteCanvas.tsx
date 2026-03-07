@@ -2,14 +2,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
+import { Node, Connection, Message, CanvasState, ContextItem, UserSession } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
-import { Image as ImageIcon } from 'lucide-react';
+import { Hand, Image as ImageIcon, Keyboard, LogIn, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
 
 const WORLD_MIN_X = -5000;
 const WORLD_MAX_X = 5000;
@@ -41,7 +41,12 @@ export const InfiniteCanvas = () => {
     const [canvasStateLoaded, setCanvasStateLoaded] = useState(false);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
+    const [showMinimap, setShowMinimap] = useState(true);
     const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
+    const [authReady, setAuthReady] = useState(false);
+    const [session, setSession] = useState<UserSession | null>(null);
+    const [loginInput, setLoginInput] = useState('');
+    const [isLoggingIn, setIsLoggingIn] = useState(false);
     const toastTimerRef = useRef<number | null>(null);
     const toastExitRef = useRef<number | null>(null);
 
@@ -135,6 +140,8 @@ export const InfiniteCanvas = () => {
             : '#1b2b33';
         const storedDockPosition = window.localStorage.getItem('canvas-dock-position');
         const nextDockPosition: 'top' | 'bottom' = storedDockPosition === 'bottom' ? 'bottom' : 'top';
+        const storedShowMinimap = window.localStorage.getItem('canvas-show-minimap');
+        const nextShowMinimap = storedShowMinimap === 'off' ? false : true;
 
         const raf = requestAnimationFrame(() => {
             setIsBeautifulUI(nextIsBeautifulUI);
@@ -146,6 +153,7 @@ export const InfiniteCanvas = () => {
             setGridColor(nextGridColor);
             setTextColor(nextTextColor);
             setDockPosition(nextDockPosition);
+            setShowMinimap(nextShowMinimap);
             setPreferencesLoaded(true);
         });
         return () => cancelAnimationFrame(raf);
@@ -162,7 +170,49 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-grid-color', gridColor);
         window.localStorage.setItem('canvas-text-color', textColor);
         window.localStorage.setItem('canvas-dock-position', dockPosition);
-    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition]);
+        window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
+    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap]);
+
+    useEffect(() => {
+        const raw = window.localStorage.getItem('canvas-user-session');
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw) as Partial<UserSession>;
+                if (typeof parsed.id === 'string' && typeof parsed.username === 'string') {
+                    setSession({ id: parsed.id, username: parsed.username });
+                    setLoginInput(parsed.username);
+                }
+            } catch {
+                window.localStorage.removeItem('canvas-user-session');
+            }
+        }
+        setAuthReady(true);
+    }, []);
+
+    const handleLogin = useCallback(async () => {
+        const username = loginInput.trim();
+        if (username.length < 2) {
+            showToast('Username must be at least 2 characters');
+            return;
+        }
+        setIsLoggingIn(true);
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username }),
+            });
+            if (!response.ok) throw new Error('Login failed');
+            const loggedIn = await response.json() as UserSession;
+            setSession(loggedIn);
+            window.localStorage.setItem('canvas-user-session', JSON.stringify(loggedIn));
+            showToast(`Signed in as ${loggedIn.username}`);
+        } catch {
+            showToast('Unable to sign in right now');
+        } finally {
+            setIsLoggingIn(false);
+        }
+    }, [loginInput, showToast]);
 
     const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
         nodes: state.nodes.map((node) => ({
@@ -182,7 +232,15 @@ export const InfiniteCanvas = () => {
     }), []);
 
     useEffect(() => {
+        if (!authReady) return;
+        if (!session) {
+            setCanvasStateLoaded(false);
+            return;
+        }
+
         let cancelled = false;
+        setCanvasStateLoaded(false);
+        const draftKey = `canvas-unsaved-state:${session.id}`;
 
         const applyState = (nextState: CanvasState) => {
             const sanitized = sanitizeStateForStorage(nextState);
@@ -193,7 +251,7 @@ export const InfiniteCanvas = () => {
         };
 
         const restoreDraft = () => {
-            const draftRaw = window.localStorage.getItem('canvas-unsaved-state');
+            const draftRaw = window.localStorage.getItem(draftKey);
             if (!draftRaw) return false;
             try {
                 const draft = JSON.parse(draftRaw) as CanvasState;
@@ -203,14 +261,14 @@ export const InfiniteCanvas = () => {
                 }
                 return true;
             } catch {
-                window.localStorage.removeItem('canvas-unsaved-state');
+                window.localStorage.removeItem(draftKey);
                 return false;
             }
         };
 
         const loadCanvasState = async () => {
             try {
-                const response = await fetch('/api/canvas-state', { cache: 'no-store' });
+                const response = await fetch(`/api/canvas-state?userId=${encodeURIComponent(session.id)}`, { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to fetch state');
                 const serverState = await response.json() as CanvasState;
                 const hasServerState = serverState.nodes.length > 0 || serverState.connections.length > 0 || (serverState.contextBuffer?.length ?? 0) > 0;
@@ -236,7 +294,7 @@ export const InfiniteCanvas = () => {
         return () => {
             cancelled = true;
         };
-    }, [sanitizeStateForStorage, showToast]);
+    }, [authReady, session, sanitizeStateForStorage, showToast]);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
@@ -245,24 +303,25 @@ export const InfiniteCanvas = () => {
     }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
 
     useEffect(() => {
-        if (!canvasStateLoaded) return;
+        if (!canvasStateLoaded || !session) return;
         if (saveTimerRef.current !== null) {
             clearTimeout(saveTimerRef.current);
         }
+        const draftKey = `canvas-unsaved-state:${session.id}`;
         const snapshot = JSON.stringify(persistedCanvasState);
         if (snapshot === lastSavedSnapshotRef.current) return;
 
         saveTimerRef.current = window.setTimeout(async () => {
-            window.localStorage.setItem('canvas-unsaved-state', snapshot);
+            window.localStorage.setItem(draftKey, snapshot);
             try {
-                const response = await fetch('/api/canvas-state', {
+                const response = await fetch(`/api/canvas-state?userId=${encodeURIComponent(session.id)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: snapshot,
                 });
                 if (!response.ok) throw new Error('Failed to save');
                 lastSavedSnapshotRef.current = snapshot;
-                window.localStorage.removeItem('canvas-unsaved-state');
+                window.localStorage.removeItem(draftKey);
             } catch (error) {
                 console.error('Canvas state save failed:', error);
             }
@@ -273,13 +332,15 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [canvasStateLoaded, persistedCanvasState]);
+    }, [canvasStateLoaded, persistedCanvasState, session]);
 
     // Global selection listener for better reliability
     useEffect(() => {
         const handleSelectionChange = () => {
             // Wait for next tick to ensure selection is complete and layout is stable
             requestAnimationFrame(() => {
+                const activeEl = document.activeElement as HTMLElement | null;
+                if (activeEl?.closest('[data-selection-menu]')) return;
                 const sel = window.getSelection();
                 const text = sel?.toString().trim();
 
@@ -718,7 +779,7 @@ export const InfiniteCanvas = () => {
     }, [addNode]);
 
     const dockButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border px-4 text-[11px] font-semibold leading-none tracking-wide",
+        "inline-flex h-10 items-center justify-center gap-1.5 border px-4 text-[11px] font-semibold leading-none tracking-wide",
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
@@ -929,6 +990,44 @@ export const InfiniteCanvas = () => {
                     }}
                 />
             )}
+            {authReady && !session && (
+                <div data-ui-overlay className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#f4ecdd]/88 px-4 backdrop-blur-[1px]">
+                    <div className={clsx(
+                        "pointer-events-auto w-full max-w-sm border border-[#1b2b33]/25 bg-[#fff8ed] p-4 shadow-[0_14px_34px_rgba(33,36,41,0.18)]",
+                        sharpEdges ? "rounded-none" : "rounded-[14px]"
+                    )}>
+                        <div className="mb-3 text-[14px] font-semibold text-[#1b2b33]">Sign in</div>
+                        <p className="mb-3 text-[11px] text-[#486069]">Use a username to load and sync your personal canvas state.</p>
+                        <div className="flex items-center gap-2">
+                            <input
+                                value={loginInput}
+                                onChange={(e) => setLoginInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleLogin();
+                                }}
+                                className={clsx(
+                                    "h-10 flex-1 border border-[#1b2b33]/25 bg-[#fffaf2] px-3 text-[12px] text-[#1b2b33] outline-none focus:border-[color:var(--canvas-accent)]",
+                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                )}
+                                placeholder="Username"
+                                autoFocus
+                            />
+                            <button
+                                className={clsx(
+                                    "inline-flex h-10 items-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold",
+                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                )}
+                                onClick={handleLogin}
+                                disabled={isLoggingIn}
+                                style={{ color: textColor }}
+                            >
+                                <LogIn size={13} />
+                                {isLoggingIn ? 'Signing in…' : 'Sign In'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>
                 {showCanvasSettings && (
@@ -1055,6 +1154,24 @@ export const InfiniteCanvas = () => {
                         </div>
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
+                                <div className="text-[12px] font-semibold">Minimap</div>
+                                <div className="text-[10px] opacity-70">Toggle the minimap overlay in beautiful mode.</div>
+                            </div>
+                            <button
+                                className={clsx(
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                )}
+                                onClick={() => setShowMinimap((prev) => !prev)}
+                                title="Toggle minimap"
+                                style={{ color: textColor }}
+                            >
+                                <MapIcon size={13} />
+                                {showMinimap ? 'Shown' : 'Hidden'}
+                            </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Colour</div>
                                 <div className="text-[10px] opacity-70">Accent, surface, grid, and text colors.</div>
                             </div>
@@ -1146,7 +1263,7 @@ export const InfiniteCanvas = () => {
                     >
                         <div className="flex items-center gap-2">
                             <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#486069]">Context:</span>
-                            <div className="flex max-w-[min(62vw,42rem)] items-center gap-2 overflow-x-auto pb-0.5">
+                            <div className="hover-scroll-x flex max-w-[min(62vw,42rem)] items-center gap-2 overflow-x-auto pb-0.5">
                                 {contextBuffer.map(item => {
                                     const words = item.text.trim().split(/\s+/).filter(w => w.length > 0);
                                     const firstWords = words.slice(0, 2).join(' ');
@@ -1169,7 +1286,14 @@ export const InfiniteCanvas = () => {
                                         >
                                             <span className="font-medium">{display}</span>
                                             {item.image && (
-                                                <ImageIcon size={12} style={{ color: accentColor }} title="Includes image context" />
+                                                <span className={clsx(
+                                                    "inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em]",
+                                                    sharpEdges ? "rounded-none" : "rounded-[8px]",
+                                                    isBeautifulUI ? "border-[#1b2b33]/20 bg-[#ffffffcc]" : "border-[#776a54]/35 bg-[#ffffffb8]"
+                                                )}>
+                                                    <ImageIcon size={10} style={{ color: accentColor }} />
+                                                    Img
+                                                </span>
                                             )}
                                         </button>
                                     );
@@ -1203,14 +1327,15 @@ export const InfiniteCanvas = () => {
                     )}
                     style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                 >
-                    <div className="overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="hover-scroll-x overflow-x-auto whitespace-nowrap">
                         <div className="flex w-max items-center justify-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
                             {isBeautifulUI && (
                                 <div className={clsx(
-                                    "inline-flex h-10 items-center border px-3 text-[11px] font-semibold tracking-[0.14em]",
+                                    "inline-flex h-10 items-center gap-1.5 border px-3 text-[11px] font-semibold tracking-[0.14em]",
                                     sharpEdges ? "rounded-none" : "rounded-[10px]",
                                     "border-[#21404a]/35 bg-[#fff8ed]"
                                 )} style={{ color: textColor }}>
+                                    <MapIcon size={13} />
                                     Canvas Atlas
                                 </div>
                             )}
@@ -1233,6 +1358,7 @@ export const InfiniteCanvas = () => {
                                 title="Select mode"
                                 style={activeTool === 'select' ? { backgroundColor: accentColor } : { color: textColor }}
                             >
+                                <MousePointer2 size={13} />
                                 Select
                             </button>
                             <button
@@ -1247,6 +1373,7 @@ export const InfiniteCanvas = () => {
                                 title="Hand mode"
                                 style={activeTool === 'hand' ? { backgroundColor: accentColor } : { color: textColor }}
                             >
+                                <Hand size={13} />
                                 Pan
                             </button>
                         </div>
@@ -1280,6 +1407,7 @@ export const InfiniteCanvas = () => {
                             title="New Chat (1)"
                             style={{ color: textColor }}
                         >
+                            <MessageSquare size={13} />
                             New Chat
                         </button>
                         <button
@@ -1288,6 +1416,7 @@ export const InfiniteCanvas = () => {
                             title="New Note (2)"
                             style={{ color: textColor }}
                         >
+                            <StickyNote size={13} />
                             New Note
                         </button>
                         <button
@@ -1296,6 +1425,7 @@ export const InfiniteCanvas = () => {
                             title="New Drawing (3)"
                             style={{ color: textColor }}
                         >
+                            <Pencil size={13} />
                             New Drawing
                         </button>
                         <button
@@ -1304,6 +1434,7 @@ export const InfiniteCanvas = () => {
                             title="Canvas settings"
                             style={{ color: textColor }}
                         >
+                            <Settings2 size={13} />
                             Settings
                         </button>
                             <button
@@ -1314,6 +1445,7 @@ export const InfiniteCanvas = () => {
                                 title="Help & Shortcuts"
                                 style={{ color: textColor }}
                             >
+                                <Keyboard size={13} />
                                 Shortcuts
                             </button>
                         </div>
@@ -1325,10 +1457,9 @@ export const InfiniteCanvas = () => {
                 <div
                     data-ui-overlay
                     className={clsx(
-                        "pointer-events-none fixed left-1/2 z-[2100] -translate-x-1/2 border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-all duration-300 ease-out",
+                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)] transition-all duration-300 ease-out",
                         sharpEdges ? "rounded-none" : "rounded-[10px]",
-                        dockPosition === 'top' ? "top-[6.1rem]" : "bottom-[6.1rem]",
-                        toast.visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"
+                        toast.visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
                     )}
                     style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}40` }}
                 >
@@ -1336,7 +1467,7 @@ export const InfiniteCanvas = () => {
                 </div>
             )}
 
-            {isBeautifulUI && (
+            {isBeautifulUI && showMinimap && (
                 <div className={clsx(
                     "fixed right-4 z-[1000] hidden h-24 w-32 border border-[#1b2b33]/30 p-1 shadow-[0_6px_16px_rgba(33,36,41,0.16)] transition-opacity duration-200 ease-out md:block",
                     minimapPositionClass,

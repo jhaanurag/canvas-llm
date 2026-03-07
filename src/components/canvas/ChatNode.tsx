@@ -425,17 +425,17 @@ const ChatNodeComponent = ({
                                             className={clsx(
                                                 "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
                                                 bubbleRadiusClass,
-                                                dimBubbles ? "opacity-80" : "opacity-100",
+                                                dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                 msg.role === 'user'
-                                                    ? "text-[#f8fffd]"
-                                                    : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]",
-                                                isBeautifulUI && "shadow-[0_2px_7px_rgba(33,36,41,0.09)]"
+                                                    ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "text-[#f8fffd]")
+                                                    : (dimBubbles ? "border-transparent bg-transparent text-[#1b2b33]" : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]"),
+                                                isBeautifulUI && !dimBubbles && "shadow-[0_2px_7px_rgba(33,36,41,0.09)]"
                                             )}
                                             style={{
                                                 wordWrap: 'break-word',
                                                 overflowWrap: 'break-word',
                                                 whiteSpace: 'pre-wrap',
-                                                ...(msg.role === 'user' ? { backgroundColor: accentColor, borderColor: accentColor } : {}),
+                                                ...(msg.role === 'user' && !dimBubbles ? { backgroundColor: accentColor, borderColor: accentColor } : {}),
                                             }}
                                         >
                                             {msg.attachments && msg.attachments.length > 0 && (
