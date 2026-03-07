@@ -193,16 +193,20 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                                 <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass, isBeautifulUI && motionClass)} title="Add to Context" onClick={() => {
                                     const canvas = canvasRef.current;
                                     if(canvas) {
-                                         // Create a temporary canvas to flatten transparency
+                                         // Create a scaled-down temporary canvas to reduce size/resolution
+                                         const scaleFactor = 0.5; // Reduce resolution by half
                                          const tempCanvas = document.createElement('canvas');
-                                         tempCanvas.width = canvas.width;
-                                         tempCanvas.height = canvas.height;
+                                         tempCanvas.width = canvas.width * scaleFactor;
+                                         tempCanvas.height = canvas.height * scaleFactor;
                                          const ctx = tempCanvas.getContext('2d');
                                          if (ctx) {
                                              ctx.fillStyle = '#FFFFFF';
                                              ctx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                                             ctx.drawImage(canvas, 0, 0);
-                                             onAddToContext("Drawing", node.id, tempCanvas.toDataURL('image/png'));
+                                             ctx.drawImage(canvas, 0, 0, tempCanvas.width, tempCanvas.height);
+                                             
+                                             // For now, continue sending as base64 string for GenAI compatibility
+                                             // but compress using jpeg at reduced quality
+                                             onAddToContext("Drawing", node.id, tempCanvas.toDataURL('image/jpeg', 0.8));
                                          }
                                     }
                                 }}>

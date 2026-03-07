@@ -254,7 +254,7 @@ const ChatNodeComponent = ({
         >
             <Card
                 className={clsx(
-                    "flex h-full flex-col overflow-hidden border",
+                    "flex relative z-10 h-full flex-col overflow-hidden border",
                     shellRadiusClass,
                     isBeautifulUI && motionClass,
                     showChrome
@@ -450,7 +450,7 @@ const ChatNodeComponent = ({
                 </div>
 
                 <div className={clsx(
-                    "flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
+                    "relative flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
                     isBeautifulUI && motionClass,
                     isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50"
                 )}>
@@ -503,6 +503,27 @@ const ChatNodeComponent = ({
                     </Button>
                 </div>
             </Card>
+
+            {/* Context Attached Module */}
+            <div
+                className={clsx(
+                    "absolute left-4 px-3 py-1 border border-[#1b2b33]/20 shadow-sm pointer-events-none transition-all duration-300 ease-out z-0 bg-[#fffdf7]",
+                    isBeautifulUI && node.hasInitialContext && node.messages.length === 0
+                        ? "opacity-100 top-[calc(100%-4px)]"
+                        : "opacity-0 top-[calc(100%-16px)] pointer-events-none",
+                    sharpEdges ? "rounded-none" : "rounded-b-lg"
+                )}
+            >
+                <div className="flex items-center space-x-1.5 opacity-80">
+                    <span 
+                        className="inline-block w-1.5 h-1.5 rounded-full" 
+                        style={{ backgroundColor: accentColor }} 
+                    />
+                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">
+                        Context added
+                    </span>
+                </div>
+            </div>
         </div>
     );
 };

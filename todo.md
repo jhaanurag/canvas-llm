@@ -21,3 +21,13 @@
 - search
 
 - infiinte canvas think of way to fix 
+
+- chat bubble toggle transparency on non hover or forced
+
+- rerender fix
+
+- unsaved to restore
+- ui spacing fixx and consitentcy fix and anim fix
+
+non project realted animeted cursor in vscode and transprnet and cursive
+-

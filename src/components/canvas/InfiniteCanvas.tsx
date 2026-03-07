@@ -39,6 +39,25 @@ export const InfiniteCanvas = () => {
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
+    const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
+    const toastTimerRef = useRef<number | null>(null);
+    const toastExitRef = useRef<number | null>(null);
+
+    const showToast = useCallback((message: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        if (toastExitRef.current) clearTimeout(toastExitRef.current);
+        
+        const id = uuidv4();
+        setToast({ id, message, visible: true });
+        
+        toastTimerRef.current = window.setTimeout(() => {
+            setToast(prev => prev?.id === id ? { ...prev, visible: false } : prev);
+            toastExitRef.current = window.setTimeout(() => {
+                setToast(prev => prev?.id === id ? null : prev);
+            }, 300);
+        }, 3000);
+    }, []);
+
     const [isMinimapHovered, setIsMinimapHovered] = useState(false);
     const [isMinimapDragging, setIsMinimapDragging] = useState(false);
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -489,19 +508,23 @@ export const InfiniteCanvas = () => {
                 : customPrompt || `Question about "${selection}": `;
 
             let fullPrompt = prompt;
+            let hasAddedContext = false;
             if (useBuffer && contextBuffer.length > 0) {
                 // Add extra newline before My Question as requested
                 fullPrompt = `Using this specific context:\n${contextBuffer.map(i => `[CTX]: ${i.text}`).join('\n')}\n\n\n${prompt}`;
                 setContextBuffer([]);
+                hasAddedContext = true;
+                showToast("Context added to new chat");
             }
 
             setNodes(prev => prev.map(n => n.id === newNode.id ? {
                 ...n,
                 initialPrompt: fullPrompt,
+                hasInitialContext: hasAddedContext,
                 autoSend: type === 'expand' // Auto-send only for expand flow
             } : n));
         }, 100);
-    }, [nodes, connections, addNode, contextBuffer, worldToScreen]);
+    }, [nodes, connections, addNode, contextBuffer, worldToScreen, showToast]);
 
     useEffect(() => {
         if (nodes.length === 0) {
@@ -1116,9 +1139,11 @@ export const InfiniteCanvas = () => {
                                         setNodes(prev => prev.map(n => n.id === newNode.id ? {
                                             ...n,
                                             initialPrompt: `\n\nContext:\n${contextText}`,
+                                            hasInitialContext: true,
                                             initialAttachments: images
                                         } : n));
                                         setContextBuffer([]);
+                                        showToast("Context added to new chat");
                                     }, 100);
                                 }
                             }}

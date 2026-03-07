@@ -24,6 +24,7 @@ export type Node = {
     initialPrompt?: string;
     systemPrompt?: string;
     autoSend?: boolean;
+    hasInitialContext?: boolean;
     initialAttachments?: { data: string; mimeType: string; name: string }[];
 };
 
