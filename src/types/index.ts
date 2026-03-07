@@ -47,8 +47,3 @@ export type CanvasState = {
     connections: Connection[];
     contextBuffer?: ContextItem[];
 };
-
-export type UserSession = {
-    id: string;
-    username: string;
-};

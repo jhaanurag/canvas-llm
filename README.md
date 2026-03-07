@@ -16,19 +16,6 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Convex Setup (Login + DB)
-
-The app supports Convex-backed login and canvas persistence when `CONVEX_URL` is configured.
-
-1. Create/configure your Convex project:
-```bash
-npm run convex:dev
-```
-2. Set one of these environment variables:
-- `CONVEX_URL`
-- `NEXT_PUBLIC_CONVEX_URL`
-
-If Convex is not configured, the app falls back to local `.data/` JSON storage.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

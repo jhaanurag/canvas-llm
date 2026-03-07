@@ -2,14 +2,14 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Node, Connection, Message, CanvasState, ContextItem, UserSession } from '@/types';
+import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
-import { Hand, Image as ImageIcon, Keyboard, LogIn, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
+import { Hand, Image as ImageIcon, Keyboard, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
 
 const WORLD_MIN_X = -5000;
 const WORLD_MAX_X = 5000;
@@ -43,10 +43,6 @@ export const InfiniteCanvas = () => {
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
     const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
-    const [authReady, setAuthReady] = useState(false);
-    const [session, setSession] = useState<UserSession | null>(null);
-    const [loginInput, setLoginInput] = useState('');
-    const [isLoggingIn, setIsLoggingIn] = useState(false);
     const toastTimerRef = useRef<number | null>(null);
     const toastExitRef = useRef<number | null>(null);
 
@@ -173,47 +169,6 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
     }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap]);
 
-    useEffect(() => {
-        const raw = window.localStorage.getItem('canvas-user-session');
-        if (raw) {
-            try {
-                const parsed = JSON.parse(raw) as Partial<UserSession>;
-                if (typeof parsed.id === 'string' && typeof parsed.username === 'string') {
-                    setSession({ id: parsed.id, username: parsed.username });
-                    setLoginInput(parsed.username);
-                }
-            } catch {
-                window.localStorage.removeItem('canvas-user-session');
-            }
-        }
-        setAuthReady(true);
-    }, []);
-
-    const handleLogin = useCallback(async () => {
-        const username = loginInput.trim();
-        if (username.length < 2) {
-            showToast('Username must be at least 2 characters');
-            return;
-        }
-        setIsLoggingIn(true);
-        try {
-            const response = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username }),
-            });
-            if (!response.ok) throw new Error('Login failed');
-            const loggedIn = await response.json() as UserSession;
-            setSession(loggedIn);
-            window.localStorage.setItem('canvas-user-session', JSON.stringify(loggedIn));
-            showToast(`Signed in as ${loggedIn.username}`);
-        } catch {
-            showToast('Unable to sign in right now');
-        } finally {
-            setIsLoggingIn(false);
-        }
-    }, [loginInput, showToast]);
-
     const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
         nodes: state.nodes.map((node) => ({
             ...node,
@@ -232,15 +187,8 @@ export const InfiniteCanvas = () => {
     }), []);
 
     useEffect(() => {
-        if (!authReady) return;
-        if (!session) {
-            setCanvasStateLoaded(false);
-            return;
-        }
-
         let cancelled = false;
-        setCanvasStateLoaded(false);
-        const draftKey = `canvas-unsaved-state:${session.id}`;
+        const draftKey = 'canvas-unsaved-state';
 
         const applyState = (nextState: CanvasState) => {
             const sanitized = sanitizeStateForStorage(nextState);
@@ -268,7 +216,7 @@ export const InfiniteCanvas = () => {
 
         const loadCanvasState = async () => {
             try {
-                const response = await fetch(`/api/canvas-state?userId=${encodeURIComponent(session.id)}`, { cache: 'no-store' });
+                const response = await fetch('/api/canvas-state', { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to fetch state');
                 const serverState = await response.json() as CanvasState;
                 const hasServerState = serverState.nodes.length > 0 || serverState.connections.length > 0 || (serverState.contextBuffer?.length ?? 0) > 0;
@@ -294,7 +242,7 @@ export const InfiniteCanvas = () => {
         return () => {
             cancelled = true;
         };
-    }, [authReady, session, sanitizeStateForStorage, showToast]);
+    }, [sanitizeStateForStorage, showToast]);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
@@ -303,18 +251,18 @@ export const InfiniteCanvas = () => {
     }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
 
     useEffect(() => {
-        if (!canvasStateLoaded || !session) return;
+        if (!canvasStateLoaded) return;
         if (saveTimerRef.current !== null) {
             clearTimeout(saveTimerRef.current);
         }
-        const draftKey = `canvas-unsaved-state:${session.id}`;
+        const draftKey = 'canvas-unsaved-state';
         const snapshot = JSON.stringify(persistedCanvasState);
         if (snapshot === lastSavedSnapshotRef.current) return;
 
         saveTimerRef.current = window.setTimeout(async () => {
             window.localStorage.setItem(draftKey, snapshot);
             try {
-                const response = await fetch(`/api/canvas-state?userId=${encodeURIComponent(session.id)}`, {
+                const response = await fetch('/api/canvas-state', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: snapshot,
@@ -332,7 +280,7 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [canvasStateLoaded, persistedCanvasState, session]);
+    }, [canvasStateLoaded, persistedCanvasState]);
 
     // Global selection listener for better reliability
     useEffect(() => {
@@ -702,9 +650,17 @@ export const InfiniteCanvas = () => {
 
             let fullPrompt = prompt;
             let hasAddedContext = false;
+            let images: { data: string; mimeType: string; name: string }[] = [];
             if (useBuffer && contextBuffer.length > 0) {
                 // Add extra newline before My Question as requested
                 fullPrompt = `Using this specific context:\n${contextBuffer.map(i => `[CTX]: ${i.text}`).join('\n')}\n\n\n${prompt}`;
+                images = contextBuffer
+                    .filter(i => i.image)
+                    .map(i => ({
+                        data: i.image!,
+                        mimeType: 'image/png',
+                        name: 'drawing.png'
+                    }));
                 setContextBuffer([]);
                 hasAddedContext = true;
                 showToast("Context added to new chat");
@@ -714,6 +670,7 @@ export const InfiniteCanvas = () => {
                 ...n,
                 initialPrompt: fullPrompt,
                 hasInitialContext: hasAddedContext,
+                initialAttachments: images.length > 0 ? images : undefined,
                 autoSend: type === 'expand' // Auto-send only for expand flow
             } : n));
         }, 100);
@@ -989,44 +946,6 @@ export const InfiniteCanvas = () => {
                         backgroundSize: `${gridResolution * 2}px ${gridResolution * 2}px`
                     }}
                 />
-            )}
-            {authReady && !session && (
-                <div data-ui-overlay className="fixed inset-0 z-[3000] flex items-center justify-center bg-[#f4ecdd]/88 px-4 backdrop-blur-[1px]">
-                    <div className={clsx(
-                        "pointer-events-auto w-full max-w-sm border border-[#1b2b33]/25 bg-[#fff8ed] p-4 shadow-[0_14px_34px_rgba(33,36,41,0.18)]",
-                        sharpEdges ? "rounded-none" : "rounded-[14px]"
-                    )}>
-                        <div className="mb-3 text-[14px] font-semibold text-[#1b2b33]">Sign in</div>
-                        <p className="mb-3 text-[11px] text-[#486069]">Use a username to load and sync your personal canvas state.</p>
-                        <div className="flex items-center gap-2">
-                            <input
-                                value={loginInput}
-                                onChange={(e) => setLoginInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleLogin();
-                                }}
-                                className={clsx(
-                                    "h-10 flex-1 border border-[#1b2b33]/25 bg-[#fffaf2] px-3 text-[12px] text-[#1b2b33] outline-none focus:border-[color:var(--canvas-accent)]",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
-                                )}
-                                placeholder="Username"
-                                autoFocus
-                            />
-                            <button
-                                className={clsx(
-                                    "inline-flex h-10 items-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold",
-                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
-                                )}
-                                onClick={handleLogin}
-                                disabled={isLoggingIn}
-                                style={{ color: textColor }}
-                            >
-                                <LogIn size={13} />
-                                {isLoggingIn ? 'Signing in…' : 'Sign In'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
             )}
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>

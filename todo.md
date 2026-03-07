@@ -13,7 +13,7 @@
 
 
 - [x] you have to make it fullstack and also do all the todo here
-    - Added sign-in flow (`/api/auth/login`) and per-user canvas state persistence.
+    - Added canvas state persistence API and restore flow.
 - [x] also show the user that a image has been added to the context using a small uninstrusive viual cue  to the user
     - Added non-intrusive toast cue (`Image added to context`) and image icon badge in context chips.
 - [x] search
