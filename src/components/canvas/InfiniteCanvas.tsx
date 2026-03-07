@@ -775,7 +775,7 @@ export const InfiniteCanvas = () => {
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
-            : "border-[#776a54]/45 bg-[#f5eddc] hover:border-[#2f5664]"
+            : "border-transparent bg-transparent hover:bg-[#eadfcb]"
     );
     const dockSettingsButtonClass = clsx(
         "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none transition-all duration-200",
@@ -783,7 +783,7 @@ export const InfiniteCanvas = () => {
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
-            : "border-[#776a54]/45 bg-[#f5eddc] hover:border-[#2f5664]"
+            : "border-transparent bg-transparent hover:bg-[#eadfcb]"
     );
     const dockSettingsWidthClass = "w-full max-w-[min(100vw-1.5rem,78rem)]";
     const dockContextWidthClass = "w-fit max-w-[min(100vw-1.5rem,74rem)]";
@@ -1459,9 +1459,14 @@ export const InfiniteCanvas = () => {
 
             {showMinimap && (
                 <div className={clsx(
-                    "fixed right-4 z-[1000] hidden h-24 w-32 border border-[#1b2b33]/30 p-1 shadow-[0_6px_16px_rgba(33,36,41,0.16)] transition-opacity duration-200 ease-out md:block",
+                    "fixed right-4 z-[1000] hidden h-24 w-32 border p-1 transition-opacity duration-200 ease-out md:block",
                     minimapPositionClass,
-                    isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-70",
+                    isBeautifulUI
+                        ? (isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-70")
+                        : "opacity-100",
+                    isBeautifulUI
+                        ? "border-[#1b2b33]/30 shadow-[0_6px_16px_rgba(33,36,41,0.16)]"
+                        : "border-[#776a54]/45 shadow-none",
                     isBeautifulUI && beautifulAppearClass,
                     sharpEdges ? "rounded-none" : "rounded-[18px]"
                 )}
@@ -1473,7 +1478,7 @@ export const InfiniteCanvas = () => {
                     onPointerCancel={onMinimapPointerUp}
                     onPointerEnter={() => setIsMinimapHovered(true)}
                     onPointerLeave={() => setIsMinimapHovered(false)}
-                    style={{ backgroundColor: surfaceColor, touchAction: 'none' }}
+                    style={{ backgroundColor: isBeautifulUI ? surfaceColor : '#f5eddc', touchAction: 'none' }}
                 >
                     <div className="relative h-full w-full">
                         {minimapDots}
