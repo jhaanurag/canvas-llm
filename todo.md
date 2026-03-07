@@ -13,11 +13,14 @@
 
 
 - you have to make it fullstack and also do all the todo here
-- also show the user that a image has been added to the context using a small uninstrusive viual cue  to the user 
+- [x] also show the user that a image has been added to the context using a small uninstrusive viual cue  to the user
+    - Added non-intrusive toast cue (`Image added to context`) and image icon badge in context chips.
 - search
-- use lucide icons
+- [x] use lucide icons
+    - Reused Lucide iconography for context image indicators in the top context bar.
 - also 
-- chat bubble toggle transparency on non hover or forced
+- [x] chat bubble toggle transparency on non hover or forced
+    - Added a chat header toggle to switch bubble presentation between `Auto` (dim when not hovered) and `Solid`.
 
 - rerender fix (optimize or make a svelte version) 
 - [x] make it fullstack
@@ -33,3 +36,5 @@
 - non project realted animeted cursor in vscode and transprnet and cursive
 - colour coding or clustering virtualization no priority
 - tags
+- exit animation for all
+- entry ani

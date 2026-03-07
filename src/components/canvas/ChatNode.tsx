@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { streamGeminiResponse } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings } from 'lucide-react';
+import { Send, Plus, X, GripVertical, FileText, Paperclip, Settings, Droplets } from 'lucide-react';
 import { clsx } from 'clsx';
 
 interface ChatNodeProps {
@@ -94,6 +94,7 @@ const ChatNodeComponent = ({
     const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
+    const [bubbleTransparencyMode, setBubbleTransparencyMode] = useState<'auto' | 'solid'>('auto');
     const fileInputRef = useRef<HTMLInputElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -102,6 +103,7 @@ const ChatNodeComponent = ({
     const messagesViewportRef = useRef<HTMLDivElement>(null);
     const showChrome = isHovered || isDragging || isEditingTitle;
     const isActive = showChrome || input || attachedFiles.length > 0;
+    const dimBubbles = bubbleTransparencyMode === 'auto' && !showChrome;
 
     useEffect(() => {
         const viewport = messagesViewportRef.current;
@@ -350,6 +352,19 @@ const ChatNodeComponent = ({
                         >
                             <FileText size={16} style={activePanel === 'notes' ? { color: accentColor } : undefined} />
                         </Button>
+                        <Button
+                            data-no-drag
+                            size="icon"
+                            variant="ghost"
+                            className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", headerButtonRadiusClass, isBeautifulUI && motionClass)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setBubbleTransparencyMode((prev) => prev === 'auto' ? 'solid' : 'auto');
+                            }}
+                            title={bubbleTransparencyMode === 'auto' ? 'Bubble transparency: Auto' : 'Bubble transparency: Solid'}
+                        >
+                            <Droplets size={16} style={bubbleTransparencyMode === 'auto' ? { color: accentColor } : undefined} />
+                        </Button>
                         <X data-no-drag size={16} className={clsx("cursor-pointer text-[#6f4951] hover:text-[#b42318]", isBeautifulUI && motionClass)} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
@@ -410,6 +425,7 @@ const ChatNodeComponent = ({
                                             className={clsx(
                                                 "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
                                                 bubbleRadiusClass,
+                                                dimBubbles ? "opacity-80" : "opacity-100",
                                                 msg.role === 'user'
                                                     ? "text-[#f8fffd]"
                                                     : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]",

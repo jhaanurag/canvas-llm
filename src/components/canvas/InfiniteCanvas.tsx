@@ -9,6 +9,7 @@ import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
+import { Image as ImageIcon } from 'lucide-react';
 
 const WORLD_MIN_X = -5000;
 const WORLD_MAX_X = 5000;
@@ -603,7 +604,8 @@ export const InfiniteCanvas = () => {
 
     const addToContext = useCallback((text: string, sourceNodeId: string, image?: string) => {
         setContextBuffer(prev => [...prev, { id: uuidv4(), text, sourceNodeId, image }]);
-    }, []);
+        showToast(image ? 'Image added to context' : 'Added to context');
+    }, [showToast]);
 
     const removeFromContext = useCallback((id: string) => {
         setContextBuffer(prev => prev.filter(item => item.id !== id));
@@ -1167,11 +1169,7 @@ export const InfiniteCanvas = () => {
                                         >
                                             <span className="font-medium">{display}</span>
                                             {item.image && (
-                                                <span
-                                                    className={clsx("inline-flex h-2 w-2", sharpEdges ? "rounded-none" : "rounded-full")}
-                                                    style={{ backgroundColor: accentColor }}
-                                                    title="Includes image context"
-                                                />
+                                                <ImageIcon size={12} style={{ color: accentColor }} title="Includes image context" />
                                             )}
                                         </button>
                                     );
