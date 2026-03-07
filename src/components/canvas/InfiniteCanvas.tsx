@@ -1184,7 +1184,7 @@ export const InfiniteCanvas = () => {
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Minimap</div>
-                                <div className="text-[10px] opacity-70">Toggle the minimap overlay in beautiful mode.</div>
+                                <div className="text-[10px] opacity-70">Toggle the minimap overlay in both UI modes.</div>
                             </div>
                             <button
                                 className={clsx(
@@ -1457,12 +1457,12 @@ export const InfiniteCanvas = () => {
                 </div>
             )}
 
-            {isBeautifulUI && showMinimap && (
+            {showMinimap && (
                 <div className={clsx(
                     "fixed right-4 z-[1000] hidden h-24 w-32 border border-[#1b2b33]/30 p-1 shadow-[0_6px_16px_rgba(33,36,41,0.16)] transition-opacity duration-200 ease-out md:block",
                     minimapPositionClass,
                     isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-70",
-                    beautifulAppearClass,
+                    isBeautifulUI && beautifulAppearClass,
                     sharpEdges ? "rounded-none" : "rounded-[18px]"
                 )}
                     data-ui-overlay
