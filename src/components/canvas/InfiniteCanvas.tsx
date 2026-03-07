@@ -29,6 +29,8 @@ export const InfiniteCanvas = () => {
     const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
+    const [isSettingsMounted, setIsSettingsMounted] = useState(false);
+    const [isSettingsVisible, setIsSettingsVisible] = useState(false);
     const [isBeautifulUI, setIsBeautifulUI] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridResolution, setGridResolution] = useState(20);
@@ -42,7 +44,9 @@ export const InfiniteCanvas = () => {
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
+    const [showButtonLabels, setShowButtonLabels] = useState(true);
     const [toast, setToast] = useState<{ id: string; message: string; visible: boolean } | null>(null);
+    const [exitingNodeIds, setExitingNodeIds] = useState<string[]>([]);
     const toastTimerRef = useRef<number | null>(null);
     const toastExitRef = useRef<number | null>(null);
 
@@ -138,6 +142,8 @@ export const InfiniteCanvas = () => {
         const nextDockPosition: 'top' | 'bottom' = storedDockPosition === 'bottom' ? 'bottom' : 'top';
         const storedShowMinimap = window.localStorage.getItem('canvas-show-minimap');
         const nextShowMinimap = storedShowMinimap === 'off' ? false : true;
+        const storedShowButtonLabels = window.localStorage.getItem('canvas-show-button-labels');
+        const nextShowButtonLabels = storedShowButtonLabels === 'off' ? false : true;
 
         const raf = requestAnimationFrame(() => {
             setIsBeautifulUI(nextIsBeautifulUI);
@@ -150,6 +156,7 @@ export const InfiniteCanvas = () => {
             setTextColor(nextTextColor);
             setDockPosition(nextDockPosition);
             setShowMinimap(nextShowMinimap);
+            setShowButtonLabels(nextShowButtonLabels);
             setPreferencesLoaded(true);
         });
         return () => cancelAnimationFrame(raf);
@@ -167,7 +174,19 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-text-color', textColor);
         window.localStorage.setItem('canvas-dock-position', dockPosition);
         window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
-    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap]);
+        window.localStorage.setItem('canvas-show-button-labels', showButtonLabels ? 'on' : 'off');
+    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels]);
+
+    useEffect(() => {
+        if (showCanvasSettings) {
+            setIsSettingsMounted(true);
+            requestAnimationFrame(() => setIsSettingsVisible(true));
+            return;
+        }
+        setIsSettingsVisible(false);
+        const timer = window.setTimeout(() => setIsSettingsMounted(false), 220);
+        return () => window.clearTimeout(timer);
+    }, [showCanvasSettings]);
 
     const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
         nodes: state.nodes.map((node) => ({
@@ -598,11 +617,26 @@ export const InfiniteCanvas = () => {
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, systemPrompt } : n));
     }, []);
 
-    const deleteNode = useCallback((id: string) => {
+    const deleteNodeImmediately = useCallback((id: string) => {
         setNodes(prev => prev.filter(n => n.id !== id));
         setConnections(prev => prev.filter(c => c.fromId !== id && c.toId !== id));
         setSelectedNodeIds(prev => prev.filter(sid => sid !== id));
+        setExitingNodeIds(prev => prev.filter(exitId => exitId !== id));
     }, []);
+
+    const deleteNode = useCallback((id: string) => {
+        if (!isBeautifulUI) {
+            deleteNodeImmediately(id);
+            return;
+        }
+        setExitingNodeIds(prev => {
+            if (prev.includes(id)) return prev;
+            return [...prev, id];
+        });
+        window.setTimeout(() => {
+            deleteNodeImmediately(id);
+        }, 220);
+    }, [deleteNodeImmediately, isBeautifulUI]);
 
     const toggleNodeSelection = useCallback((id: string) => {
         if (activeToolRef.current !== 'select') return;
@@ -736,14 +770,16 @@ export const InfiniteCanvas = () => {
     }, [addNode]);
 
     const dockButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center gap-1.5 border px-4 text-[11px] font-semibold leading-none tracking-wide",
+        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide transition-all duration-200",
+        showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
             : "border-[#776a54]/45 bg-[#f5eddc] hover:border-[#2f5664]"
     );
     const dockSettingsButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border px-3 text-[11px] font-semibold leading-none",
+        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none transition-all duration-200",
+        showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[10px]",
         isBeautifulUI
             ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
@@ -759,7 +795,7 @@ export const InfiniteCanvas = () => {
     const dockContextOrderClass = 'order-2';
     const dockSettingsOrderClass = dockPosition === 'top' ? 'order-3' : 'order-1';
     const minimapPositionClass = dockPosition === 'bottom' ? 'bottom-[8.25rem]' : 'bottom-4';
-    const beautifulAppearClass = isBeautifulUI ? 'animate-in fade-in-0 duration-200 ease-out' : '';
+    const beautifulAppearClass = isBeautifulUI ? 'transition-all duration-220 ease-out' : '';
     const gridLineColor = useMemo(() => {
         const hex = gridColor.replace('#', '');
         if (hex.length !== 6) return 'rgba(27, 43, 51, 0.1)';
@@ -772,6 +808,7 @@ export const InfiniteCanvas = () => {
     const panelRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[18px]';
     const segmentRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[12px]';
     const segmentButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[10px]';
+    const exitingNodeIdSet = useMemo(() => new Set(exitingNodeIds), [exitingNodeIds]);
     const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
     const selectedContextNodes = useMemo(
         () => nodes.filter((node) => selectedNodeIdSet.has(node.id)),
@@ -814,6 +851,7 @@ export const InfiniteCanvas = () => {
     const renderedNodes = useMemo(() => (
         nodes.map((node) => {
             const isSelected = selectedNodeIdSet.has(node.id);
+            const isExiting = exitingNodeIdSet.has(node.id);
             if (node.type === 'chat') {
                 return (
                     <ChatNode
@@ -829,6 +867,7 @@ export const InfiniteCanvas = () => {
                         onDelete={() => deleteNode(node.id)}
                         onSelect={() => toggleNodeSelection(node.id)}
                         isSelected={isSelected}
+                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
@@ -849,6 +888,7 @@ export const InfiniteCanvas = () => {
                         onDelete={() => deleteNode(node.id)}
                         onSelect={() => toggleNodeSelection(node.id)}
                         isSelected={isSelected}
+                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
@@ -867,6 +907,7 @@ export const InfiniteCanvas = () => {
                         onDelete={() => deleteNode(node.id)}
                         onSelect={() => toggleNodeSelection(node.id)}
                         isSelected={isSelected}
+                        isExiting={isExiting}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
@@ -889,6 +930,7 @@ export const InfiniteCanvas = () => {
         setActiveContextId,
         setGlobalSelection,
         selectedContextNodes,
+        exitingNodeIdSet,
         selectedNodeIdSet,
         toggleNodeSelection,
         updateNodeContent,
@@ -918,6 +960,73 @@ export const InfiniteCanvas = () => {
         '--canvas-accent-70': `${accentColor}b3`,
         '--canvas-accent': accentColor
     } as React.CSSProperties;
+    const dockActionButtons = useMemo(() => ([
+        {
+            key: 'new-chat',
+            className: dockButtonClass,
+            title: 'New Chat (1)',
+            icon: <MessageSquare size={13} />,
+            label: 'New Chat',
+            onClick: () => {
+                const newNode = addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
+                if (contextBuffer.length > 0) {
+                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
+                    const images = contextBuffer
+                        .filter(i => i.image)
+                        .map(i => ({
+                            data: i.image!,
+                            mimeType: 'image/png',
+                            name: 'drawing.png'
+                        }));
+
+                    setTimeout(() => {
+                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
+                            ...n,
+                            initialPrompt: `\n\nContext:\n${contextText}`,
+                            hasInitialContext: true,
+                            initialAttachments: images
+                        } : n));
+                        setContextBuffer([]);
+                        showToast("Context added to new chat");
+                    }, 100);
+                }
+            },
+        },
+        {
+            key: 'new-note',
+            className: dockButtonClass,
+            title: 'New Note (2)',
+            icon: <StickyNote size={13} />,
+            label: 'New Note',
+            onClick: () => addNode('note', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3),
+        },
+        {
+            key: 'new-drawing',
+            className: dockButtonClass,
+            title: 'New Drawing (3)',
+            icon: <Pencil size={13} />,
+            label: 'New Drawing',
+            onClick: () => addNode('drawing', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3),
+        },
+        {
+            key: 'settings',
+            className: dockSettingsButtonClass,
+            title: 'Canvas settings',
+            icon: <Settings2 size={13} />,
+            label: 'Settings',
+            onClick: () => setShowCanvasSettings((prev) => !prev),
+        },
+        {
+            key: 'shortcuts',
+            className: dockButtonClass,
+            title: 'Help & Shortcuts',
+            icon: <Keyboard size={13} />,
+            label: 'Shortcuts',
+            onClick: () => {
+                alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
+            },
+        },
+    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, offset.x, offset.y, showToast]);
 
     return (
         <div
@@ -949,14 +1058,15 @@ export const InfiniteCanvas = () => {
             )}
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>
-                {showCanvasSettings && (
+                {isSettingsMounted && (
                     <div
                         className={clsx(
-                            "pointer-events-auto border border-[#1b2b33]/25 px-3.5 py-3",
+                            "pointer-events-auto relative z-[2200] border border-[#1b2b33]/25 px-3.5 py-3",
                             dockSettingsWidthClass,
                             dockSettingsOrderClass,
                             panelRadiusClass,
                             beautifulAppearClass,
+                            isSettingsVisible ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0 pointer-events-none",
                             isBeautifulUI && "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"
                         )}
                         style={{ backgroundColor: surfaceColor, color: textColor }}
@@ -1087,6 +1197,23 @@ export const InfiniteCanvas = () => {
                             >
                                 <MapIcon size={13} />
                                 {showMinimap ? 'Shown' : 'Hidden'}
+                            </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="min-w-0">
+                                <div className="text-[12px] font-semibold">Button Labels</div>
+                                <div className="text-[10px] opacity-70">Show or hide text labels in the top dock buttons.</div>
+                            </div>
+                            <button
+                                className={clsx(
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    sharpEdges ? "rounded-none" : "rounded-[10px]"
+                                )}
+                                onClick={() => setShowButtonLabels((prev) => !prev)}
+                                title="Toggle button labels"
+                                style={{ color: textColor }}
+                            >
+                                {showButtonLabels ? 'Shown' : 'Hidden'}
                             </button>
                         </div>
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
@@ -1236,7 +1363,7 @@ export const InfiniteCanvas = () => {
 
                 <div
                     className={clsx(
-                        "pointer-events-auto transition-[max-width,padding] duration-200 ease-out",
+                        "pointer-events-auto relative z-[2100] transition-[max-width,padding] duration-200 ease-out",
                         dockMenuWidthClass,
                         dockMenuOrderClass,
                         beautifulAppearClass,
@@ -1267,7 +1394,8 @@ export const InfiniteCanvas = () => {
                             )}>
                             <button
                                 className={clsx(
-                                    "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
+                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold transition-all duration-200",
+                                    showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'select'
                                         ? "text-[#f8fffd]"
@@ -1278,11 +1406,12 @@ export const InfiniteCanvas = () => {
                                 style={activeTool === 'select' ? { backgroundColor: accentColor } : { color: textColor }}
                             >
                                 <MousePointer2 size={13} />
-                                Select
+                                {showButtonLabels && <span>Select</span>}
                             </button>
                             <button
                                 className={clsx(
-                                    "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
+                                    "inline-flex h-8 items-center justify-center text-[11px] font-semibold transition-all duration-200",
+                                    showButtonLabels ? "min-w-16 gap-1.5 px-3" : "w-8 px-0",
                                     segmentButtonRadiusClass,
                                     activeTool === 'hand'
                                         ? "text-[#f8fffd]"
@@ -1293,80 +1422,22 @@ export const InfiniteCanvas = () => {
                                 style={activeTool === 'hand' ? { backgroundColor: accentColor } : { color: textColor }}
                             >
                                 <Hand size={13} />
-                                Pan
+                                {showButtonLabels && <span>Pan</span>}
                             </button>
                         </div>
 
-                        <button
-                            className={dockButtonClass}
-                            onClick={() => {
-                                const newNode = addNode('chat', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3);
-                                if (contextBuffer.length > 0) {
-                                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
-                                    const images = contextBuffer
-                                        .filter(i => i.image)
-                                        .map(i => ({
-                                            data: i.image!,
-                                            mimeType: 'image/png',
-                                            name: 'drawing.png'
-                                        }));
-
-                                    setTimeout(() => {
-                                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
-                                            ...n,
-                                            initialPrompt: `\n\nContext:\n${contextText}`,
-                                            hasInitialContext: true,
-                                            initialAttachments: images
-                                        } : n));
-                                        setContextBuffer([]);
-                                        showToast("Context added to new chat");
-                                    }, 100);
-                                }
-                            }}
-                            title="New Chat (1)"
-                            style={{ color: textColor }}
-                        >
-                            <MessageSquare size={13} />
-                            New Chat
-                        </button>
-                        <button
-                            className={dockButtonClass}
-                            onClick={() => addNode('note', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3)}
-                            title="New Note (2)"
-                            style={{ color: textColor }}
-                        >
-                            <StickyNote size={13} />
-                            New Note
-                        </button>
-                        <button
-                            className={dockButtonClass}
-                            onClick={() => addNode('drawing', offset.x + window.innerWidth / 2, offset.y + window.innerHeight / 3)}
-                            title="New Drawing (3)"
-                            style={{ color: textColor }}
-                        >
-                            <Pencil size={13} />
-                            New Drawing
-                        </button>
-                        <button
-                            className={dockSettingsButtonClass}
-                            onClick={() => setShowCanvasSettings((prev) => !prev)}
-                            title="Canvas settings"
-                            style={{ color: textColor }}
-                        >
-                            <Settings2 size={13} />
-                            Settings
-                        </button>
-                            <button
-                                className={dockButtonClass}
-                                onClick={() => {
-                                    alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
-                                }}
-                                title="Help & Shortcuts"
-                                style={{ color: textColor }}
-                            >
-                                <Keyboard size={13} />
-                                Shortcuts
-                            </button>
+                            {dockActionButtons.map((button) => (
+                                <button
+                                    key={button.key}
+                                    className={button.className}
+                                    onClick={button.onClick}
+                                    title={button.title}
+                                    style={{ color: textColor }}
+                                >
+                                    {button.icon}
+                                    {showButtonLabels && <span>{button.label}</span>}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>

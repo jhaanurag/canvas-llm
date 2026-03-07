@@ -26,6 +26,7 @@ interface ChatNodeProps {
     onAddToContext: (text: string, nodeId: string) => void;
     setGlobalSelection: (selection: { text: string; x: number; y: number } | null) => void;
     isSelected: boolean;
+    isExiting?: boolean;
     isBeautifulUI?: boolean;
     sharpEdges?: boolean;
     accentColor?: string;
@@ -47,6 +48,7 @@ const ChatNodeComponent = ({
     onAddToContext,
     setGlobalSelection,
     isSelected,
+    isExiting = false,
     isBeautifulUI = false,
     sharpEdges = false,
     accentColor = '#0f766e',
@@ -234,7 +236,8 @@ const ChatNodeComponent = ({
                 isBeautifulUI && motionClass,
                 isBeautifulUI && activeContextId === node.id ? "scale-[1.01]" : "",
                 isSelected && showChrome && !isDragging ? "ring-2" : "",
-                isDragging && "select-none cursor-grabbing"
+                isDragging && "select-none cursor-grabbing",
+                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0 scale-[0.97] translate-y-2" : "opacity-100 scale-100 translate-y-0")
             )}
             style={{
                 left: node.x,
@@ -557,6 +560,7 @@ export const ChatNode = React.memo(ChatNodeComponent, (prev, next) => (
     prev.node === next.node &&
     prev.activeContextId === next.activeContextId &&
     prev.isSelected === next.isSelected &&
+    prev.isExiting === next.isExiting &&
     prev.isBeautifulUI === next.isBeautifulUI &&
     prev.sharpEdges === next.sharpEdges &&
     sameSelectedContext(prev.selectedNodesContext, next.selectedNodesContext)

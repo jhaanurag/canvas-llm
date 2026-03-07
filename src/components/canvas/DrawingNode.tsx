@@ -14,13 +14,14 @@ interface DrawingNodeProps {
     onSelect: () => void;
     onMouseDown: () => void;
     isSelected: boolean;
+    isExiting?: boolean;
     isBeautifulUI?: boolean;
     sharpEdges?: boolean;
     accentColor?: string;
     onAddToContext?: (text: string, sourceNodeId: string, image?: string) => void;
 }
 
-const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onAddToContext }: DrawingNodeProps) => {
+const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown, isSelected, isExiting = false, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onAddToContext }: DrawingNodeProps) => {
     const motionClass = 'transition-[background-color,border-color,box-shadow,color,opacity,transform] duration-200 ease-out';
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -147,7 +148,8 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
                 isSelected && !isDragging ? "ring-2" : "",
-                isDragging && "select-none cursor-grabbing"
+                isDragging && "select-none cursor-grabbing",
+                isBeautifulUI && (isExiting ? "pointer-events-none opacity-0 scale-[0.97] translate-y-2" : "opacity-100 scale-100 translate-y-0")
             )}
             style={{
                 left: node.x,
@@ -245,6 +247,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
 export const DrawingNode = React.memo(DrawingNodeComponent, (prev, next) => (
     prev.node === next.node &&
     prev.isSelected === next.isSelected &&
+    prev.isExiting === next.isExiting &&
     prev.isBeautifulUI === next.isBeautifulUI &&
     prev.sharpEdges === next.sharpEdges
 ));
