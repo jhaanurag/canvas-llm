@@ -8,26 +8,24 @@
     - Formatted `initialPrompt` to place context after newlines, keeping the top clear for user input.
     - Added auto-focus and cursor positioning (start of input) in `ChatNode` when initialized with context.
 
+
+
+
+
+- you have to make it fullstack and also do all the todo here
 - also show the user that a image has been added to the context using a small uninstrusive viual cue  to the user 
-
-<!-- -  all the non-text and non-drawing-stroke ui be transparent on "not hover state only" that include the bg colour of the chat window an dalso the icons that are for the attachments when there is not drawing on a drawing board then dont make its tranparent instead give it a bg so that user know where theddraing board is  -->
-
-- reduce animations
-- space button
-
-- colour coding or clustering virtualization no priority
-- tags
-
 - search
-
-- infiinte canvas think of way to fix 
-
+- use lucide icons
+- also 
 - chat bubble toggle transparency on non hover or forced
 
-- rerender fix
+- rerender fix (optimize or make a svelte version) 
+- make it fullstack
+- that means the canvas, chats are stored and restored, exxcept the images for now,
 
+- 
 - unsaved to restore
 - ui spacing fixx and consitentcy fix and anim fix
-
-non project realted animeted cursor in vscode and transprnet and cursive
--
+- non project realted animeted cursor in vscode and transprnet and cursive
+- colour coding or clustering virtualization no priority
+- tags

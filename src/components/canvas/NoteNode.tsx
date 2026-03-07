@@ -81,7 +81,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                 "absolute pointer-events-auto",
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
-                isSelected ? "ring-2" : "",
+                isSelected && !isDragging ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -91,7 +91,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onSelect,
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
+                ...(isSelected && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

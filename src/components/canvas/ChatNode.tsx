@@ -230,7 +230,7 @@ const ChatNodeComponent = ({
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
                 isBeautifulUI && activeContextId === node.id ? "scale-[1.01]" : "",
-                isSelected && showChrome ? "ring-2" : "",
+                isSelected && showChrome && !isDragging ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -240,7 +240,7 @@ const ChatNodeComponent = ({
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected && showChrome ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
+                ...(isSelected && showChrome && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => {
                 setIsHovered(true);

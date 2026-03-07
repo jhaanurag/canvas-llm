@@ -146,7 +146,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                 "absolute pointer-events-auto",
                 outerRadiusClass,
                 isBeautifulUI && motionClass,
-                isSelected ? "ring-2" : "",
+                isSelected && !isDragging ? "ring-2" : "",
                 isDragging && "select-none cursor-grabbing"
             )}
             style={{
@@ -156,7 +156,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onSelect, onMouseDown
                 height: node.height,
                 zIndex: isDragging ? 100 : 10,
                 ...cssVars,
-                ...(isSelected ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
+                ...(isSelected && !isDragging ? { boxShadow: `0 0 0 2px ${accentColor}b3` } : {})
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

@@ -221,6 +221,13 @@ export const InfiniteCanvas = () => {
         );
     }, []);
 
+    const shouldIgnorePanStartTarget = useCallback((target: HTMLElement) => {
+        return Boolean(
+            target.closest('[data-ui-overlay]') ||
+            target.closest('[data-selection-menu]')
+        );
+    }, []);
+
     const clamp = useCallback((value: number, min: number, max: number) => {
         return Math.min(max, Math.max(min, value));
     }, []);
@@ -271,10 +278,10 @@ export const InfiniteCanvas = () => {
         if (activeToolRef.current !== 'hand' && !isSpacePanningRef.current) return;
         if (e.button !== 0 && e.button !== 1) return;
         const target = e.target as HTMLElement;
-        if (shouldIgnorePanTarget(target)) return;
+        if (shouldIgnorePanStartTarget(target)) return;
         startPanning(e);
         e.stopPropagation();
-    }, [shouldIgnorePanTarget, startPanning]);
+    }, [shouldIgnorePanStartTarget, startPanning]);
 
     const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement;
@@ -726,6 +733,7 @@ export const InfiniteCanvas = () => {
         })
     ), [
         activeContextId,
+        accentColor,
         addToContext,
         bringToFront,
         deleteNode,
@@ -758,7 +766,7 @@ export const InfiniteCanvas = () => {
                 }}
             />
         ))
-    ), [nodes, sharpEdges]);
+    ), [nodes, sharpEdges, accentColor]);
 
     const cssVars = {
         '--canvas-accent-70': `${accentColor}b3`,
@@ -1061,35 +1069,33 @@ export const InfiniteCanvas = () => {
 
                 <div
                     className={clsx(
-                        "pointer-events-auto border px-3 py-3",
+                        "pointer-events-auto",
                         dockPanelWidthClass,
                         dockMenuOrderClass,
-                        panelRadiusClass,
                         beautifulAppearClass,
                         isBeautifulUI
-                            ? "border-[#1b2b33]/25"
-                            : "border-[#776a54]/45 bg-[#f5eddc]",
-                        isBeautifulUI && "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"
+                            ? ["border border-[#1b2b33]/25 px-3 py-3", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
+                            : "px-0 py-0"
                     )}
                     style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                 >
                     <div className="overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                        <div className="flex w-max items-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
-                            <div className={clsx(
-                                "inline-flex h-10 items-center border px-3 text-[11px] font-semibold tracking-[0.14em]",
-                                sharpEdges ? "rounded-none" : "rounded-[10px]",
-                                isBeautifulUI
-                                    ? "border-[#21404a]/35 bg-[#fff8ed]"
-                                    : "border-[#776a54]/45 bg-[#f5eddc]"
-                            )} style={{ color: textColor }}>
-                                Canvas Atlas
-                            </div>
+                        <div className="flex w-max min-w-full items-center justify-center gap-2 pb-0.5" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
+                            {isBeautifulUI && (
+                                <div className={clsx(
+                                    "inline-flex h-10 items-center border px-3 text-[11px] font-semibold tracking-[0.14em]",
+                                    sharpEdges ? "rounded-none" : "rounded-[10px]",
+                                    "border-[#21404a]/35 bg-[#fff8ed]"
+                                )} style={{ color: textColor }}>
+                                    Canvas Atlas
+                                </div>
+                            )}
                             <div className={clsx(
                             "flex h-10 items-center gap-1 border p-1",
                             segmentRadiusClass,
                             isBeautifulUI
                                 ? "border-[#1b2b33]/25 bg-[#fff8ed]"
-                                : "border-[#776a54]/45 bg-[#f0e5cf]"
+                                : "border-transparent bg-transparent"
                             )}>
                             <button
                                 className={clsx(
