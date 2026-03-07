@@ -20,11 +20,9 @@
     - Selection menu now preserves state while using Custom Ask input and no longer drops unexpectedly.
 - [x] use lucide icons
     - Reused Lucide iconography for context image indicators in the top context bar.
-- also 
 - [x] chat bubble toggle transparency on non hover or forced
     - Bubble `Auto` mode now makes all bubble chrome transparent while keeping message text/icons visible.
 
-- rerender fix (optimize or make a svelte version) 
 - [x] make it fullstack
 - [x] that means the canvas, chats are stored and restored, exxcept the images for now,
     - Added `/api/canvas-state` GET/POST persistence endpoint.
@@ -35,9 +33,11 @@
     - Added draft fallback restore from `localStorage` (`canvas-unsaved-state`) when server state is unavailable.
 - [x] ui spacing fixx and consitentcy fix and anim fix
     - Tightened top dock/context sizing and standardized paddings across top controls and node headers.
-- non project realted animeted cursor in vscode and transprnet and cursive
-- colour coding or clustering virtualization no priority
-- tags
-- exit animation for all in beautiful mode entry animation
 - [x] move toast to bottom-right
 - [x] add minimap toggle in settings
+
+- non project realted animeted cursor in vscode and transprnet and cursive
+- colour coding or clustering virtualization no priority
+- rerender fix (optimize or make a svelte version) 
+- exit animation for all in beautiful mode entry animation
+- tags
