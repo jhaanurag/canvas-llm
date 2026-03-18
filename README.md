@@ -1,6 +1,7 @@
 # Canvas LLM
 
 An infinite canvas-based LLM interface built with Next.js, Convex, and Clerk. Create, connect, and explore ideas through chat, notes, and drawings on a persistent digital workspace.
+<img width="1824" height="899" alt="image" src="https://github.com/user-attachments/assets/1819a614-0dd5-49f2-a4ee-c393f3f358ad" />
 
 ## Features
 
