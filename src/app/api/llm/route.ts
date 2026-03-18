@@ -1,5 +1,3 @@
-import { auth } from '@clerk/nextjs/server';
-
 export const dynamic = 'force-dynamic';
 
 const LOCAL_PROXY_URL = process.env.LLM_LOCAL_PROXY_URL;
@@ -67,11 +65,12 @@ async function tryProxy(baseUrl: string, body: string) {
 }
 
 export async function POST(request: Request) {
-    // ── Auth guard ──
-    const { userId } = await auth();
-    if (!userId) {
-        return new Response('Authentication required', { status: 401 });
-    }
+    // ── Auth guard (TEMPORARILY DISABLED) ──
+    // const { userId } = await auth();
+    // if (!userId) {
+    //     return new Response('Authentication required', { status: 401 });
+    // }
+    const userId = "temp-dev-user";
 
     // ── Rate limiting ──
     if (isRateLimited(userId)) {

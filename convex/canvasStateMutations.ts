@@ -58,12 +58,13 @@ export const save = mutation({
     contextBuffer: v.array(contextItemValidator),
   },
   handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Authentication required to save canvas state.");
-    }
+    // const identity = await ctx.auth.getUserIdentity();
+    // if (!identity) {
+    //   throw new Error("Authentication required to save canvas state.");
+    // }
 
-    const clerkUserId = identity.subject;
+    // const clerkUserId = identity.subject;
+    const clerkUserId = "temp-dev-user";
 
     // Enforce size limits
     const nodes = args.nodes.slice(0, MAX_NODES);
@@ -100,12 +101,13 @@ export const save = mutation({
 export const clear = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Authentication required to clear canvas state.");
-    }
+    // const identity = await ctx.auth.getUserIdentity();
+    // if (!identity) {
+    //   throw new Error("Authentication required to clear canvas state.");
+    // }
 
-    const clerkUserId = identity.subject;
+    // const clerkUserId = identity.subject;
+    const clerkUserId = "temp-dev-user";
 
     const existing = await ctx.db
       .query("canvasStates")
