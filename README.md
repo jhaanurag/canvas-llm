@@ -1,85 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Canvas LLM
+
+An infinite canvas-based LLM interface built with Next.js, Convex, and Clerk. Create, connect, and explore ideas through chat, notes, and drawings on a persistent digital workspace.
+
+## Features
+
+- **Infinite Canvas**: Organize your thoughts spatially without boundaries.
+- **Persistent State**: Your canvas is automatically saved to Convex and tied to your Clerk account.
+- **Multi-modal Nodes**:
+  - **Chat Nodes**: Interactive LLM conversations with context awareness.
+  - **Note Nodes**: Rich text areas for documentation and synthesis.
+  - **Drawing Nodes**: Visual expression directly on the canvas.
+- **Contextual Connections**: Link nodes together to pass context between them.
+- **Secure Architecture**: All LLM calls are proxied through a secure backend, protecting your API keys.
+
+## Tech Stack
+
+- **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
+- **Database**: [Convex](https://www.convex.dev/) (Real-time synchronization)
+- **Auth**: [Clerk](https://clerk.com/) (User management)
+- **LLM Proxy**: [LiteLLM](https://github.com/BerriAI/litellm)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- A Convex account
+- A Clerk account
+- A LiteLLM proxy instance (local or remote)
+
+### Environment Setup
+
+Create a `.env.local` file in the root directory:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+# Clerk Auth
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_publishable_key
+CLERK_SECRET_KEY=your_secret_key
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# Convex Database
+CONVEX_DEPLOYMENT=your_deployment_id
+NEXT_PUBLIC_CONVEX_URL=your_convex_url
 
-## Authentication
-
-This app now uses Clerk with the Next.js App Router.
-
-- `@clerk/nextjs` is installed and wired through `src/proxy.ts` with `clerkMiddleware()`.
-- The root layout shows `Sign in`, `Sign up`, and `UserButton` controls through Clerk components.
-- Clerk keyless mode works in local development, so you can run the app without setting Clerk keys first.
-
-Canvas persistence is now scoped to the signed-in Clerk user. If you are not signed in, the app still keeps a local unsaved draft in `localStorage`, but server restore/save requires authentication.
-
-## LLM Proxy Fallback
-
-Canvas LLM now sends chat requests to the local Next.js API route at `/api/llm`.
-That server route tries the local LiteLLM proxy first and falls back to the hosted Render proxy if local is unavailable.
-
-Store the proxy configuration only in `.env.local`. This file is already ignored by git via `.env*`, so the proxy key and backup URL stay local to your machine.
-
-Required local environment variables:
-
-```bash
+# LLM Proxy Configuration
 LLM_LOCAL_PROXY_URL=http://127.0.0.1:4000
-LLM_REMOTE_PROXY_URL=https://litellm-render-deploy-nodocker.onrender.com
+LLM_REMOTE_PROXY_URL=https://your-remote-proxy.com
 LLM_PROXY_KEY=your-shared-proxy-key
 ```
 
-The app will return a configuration error if these values are missing.
+### Installation
 
-The browser never calls the Render URL directly and never receives the proxy key.
-Client code sends requests only to `/api/llm`, and that server route attaches the bearer token from environment variables on the server.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/your-repo/canvas-llm.git
+   cd canvas-llm
+   ```
 
-Create `.env.local` in the project root with those values.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
+3. Start the development environment:
+   ```bash
+   npm run dev
+   ```
+   This command runs both the Next.js development server and the Convex development window in parallel.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `convex/`: Database schema and server-side mutations/queries.
+- `src/app/`: Next.js pages and API routes (including the `/api/llm` proxy).
+- `src/components/canvas/`: The core canvas logic and node components.
+- `src/lib/`: Shared utilities and LLM client logic.
+- `src/types/`: TypeScript definitions for the canvas state and nodes.
 
-## Learn More
+## LLM Proxy Architecture
 
-To learn more about Next.js, take a look at the following resources:
+To ensure security and reliability, all LLM requests are routed through `src/app/api/llm/route.ts`. This route:
+1. Verifies the user session via Clerk.
+2. Implements a rate limiter to prevent abuse.
+3. Attempts to reach a local LiteLLM proxy first.
+4. Falls back to a remote proxy if the local one is unreachable.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+MIT
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## Backend Completion Plan
-
-The app is currently in a hybrid state:
-
-- Auth is ready through Clerk.
-- LLM requests already flow through the `/api/llm` backend route.
-- Canvas persistence still uses file storage under `.data/`, which is fine for local development but not durable on serverless deployments.
-
-To complete the backend with Convex:
-
-1. Install `convex` and initialize the Convex project.
-2. Create a `canvasStates` table keyed by `clerkUserId`.
-3. Replace `/api/canvas-state` file I/O with Convex queries and mutations.
-4. Add image storage through a durable provider and store image URLs in Convex instead of base64 blobs.
-5. Deploy the Next.js app to Vercel and the LiteLLM proxy to Render or another always-on service.
