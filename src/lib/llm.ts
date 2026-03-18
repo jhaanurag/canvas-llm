@@ -1,29 +1,35 @@
 
-import { GoogleGenAI } from '@google/genai';
+type ChatHistoryEntry = {
+    role: 'user' | 'model' | 'assistant';
+    text: string;
+};
 
-// API key must be provided via environment variable
-const API_KEY = process.env.NEXT_PUBLIC_GEMINI_API_KEY!;
+type ChatContentPart =
+    | { type: 'text'; text: string }
+    | { type: 'image_url'; image_url: { url: string } };
 
-// Using the pattern provided in the prompt docs
-
+type ChatMessage = {
+    role: 'system' | 'user' | 'assistant';
+    content: string | ChatContentPart[];
+};
 
 export async function* streamGeminiResponse(
     prompt: string,
-    history: { role: 'user' | 'model' | 'assistant'; text: string }[] = [],
+    history: ChatHistoryEntry[] = [],
     files: { data: string; mimeType: string }[] = [],
     systemPrompt: string = 'You are a helpful AI assistant.'
 ) {
-    const messages: any[] = [
+    const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
-        ...history.map(h => ({
-            role: h.role === 'model' ? 'assistant' : 'user',
-            content: h.text
+        ...history.map((entry): ChatMessage => ({
+            role: entry.role === 'model' ? 'assistant' : 'user',
+            content: entry.text
         }))
     ];
 
     if (files.length > 0) {
         // Construct multi-modal message for current turn
-        const content: any[] = [
+        const content: ChatContentPart[] = [
             { type: "text", text: prompt }
         ];
 
@@ -54,11 +60,10 @@ export async function* streamGeminiResponse(
     };
 
     try {
-        const response = await fetch("http://localhost:4000/v1/chat/completions", {
+        const response = await fetch("/api/llm", {
             method: "POST",
             headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${process.env.LLM_PROXY_KEY}`
+                "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
         });
@@ -93,7 +98,7 @@ export async function* streamGeminiResponse(
                     const parsed = JSON.parse(cleanLine);
                     const content = parsed.choices[0]?.delta?.content;
                     if (content) yield content;
-                } catch (e) {
+                } catch {
                     // Ignore partial JSON chunks
                 }
             }
@@ -101,7 +106,7 @@ export async function* streamGeminiResponse(
     } catch (error) {
         console.error('[LLM Fetch Error]', error);
         if (error instanceof TypeError && error.message.includes('fetch')) {
-            yield `Error: Cannot connect to LLM proxy on localhost:4000. Please ensure:\n1. litellm is running on port 4001\n2. python3 litellm_proxy.py is running on port 4000\n\nOriginal error: ${error.message}`;
+            yield `Error: Cannot connect to the LLM service. The app tries your local proxy first and then the hosted backup.\n\nOriginal error: ${error.message}`;
         } else {
             yield `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`;
         }

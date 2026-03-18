@@ -1,11 +1,23 @@
+"use client";
 
+import dynamic from "next/dynamic";
+import { CanvasLoadingSkeleton } from "@/components/CanvasLoadingSkeleton";
 
-import { InfiniteCanvas } from '@/components/canvas/InfiniteCanvas';
+// Dynamically import the canvas to avoid SSR/prerendering issues with
+// Convex and Clerk hooks that require a browser environment.
+const ClientCanvas = dynamic(
+  () =>
+    import("@/components/canvas/CanvasPage").then((mod) => mod.CanvasPage),
+  {
+    ssr: false,
+    loading: () => <CanvasLoadingSkeleton />,
+  }
+);
 
 export default function Home() {
   return (
-    <main className="w-screen h-screen">
-      <InfiniteCanvas />
+    <main className="h-screen w-screen">
+      <ClientCanvas />
     </main>
   );
 }

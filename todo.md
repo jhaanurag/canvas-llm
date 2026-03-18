@@ -41,3 +41,4 @@
 - rerender fix (optimize or make a svelte version) 
 - exit animation for all in beautiful mode entry animation
 - tags
+- add backend and 

@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useAuth } from '@clerk/nextjs';
 import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
@@ -19,6 +20,7 @@ const WORLD_WIDTH = WORLD_MAX_X - WORLD_MIN_X;
 const WORLD_HEIGHT = WORLD_MAX_Y - WORLD_MIN_Y;
 
 export const InfiniteCanvas = () => {
+    const { isLoaded: authLoaded, isSignedIn } = useAuth();
     const [nodes, setNodes] = useState<Node[]>([]);
     const [connections, setConnections] = useState<Connection[]>([]);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -190,6 +192,8 @@ export const InfiniteCanvas = () => {
     }), []);
 
     useEffect(() => {
+        if (!authLoaded) return;
+
         let cancelled = false;
         const draftKey = 'canvas-unsaved-state';
 
@@ -218,6 +222,12 @@ export const InfiniteCanvas = () => {
         };
 
         const loadCanvasState = async () => {
+            if (!isSignedIn) {
+                restoreDraft();
+                setCanvasStateLoaded(true);
+                return;
+            }
+
             try {
                 const response = await fetch('/api/canvas-state', { cache: 'no-store' });
                 if (!response.ok) throw new Error('Failed to fetch state');
@@ -245,7 +255,7 @@ export const InfiniteCanvas = () => {
         return () => {
             cancelled = true;
         };
-    }, [sanitizeStateForStorage, showToast]);
+    }, [authLoaded, isSignedIn, sanitizeStateForStorage, showToast]);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
@@ -254,7 +264,7 @@ export const InfiniteCanvas = () => {
     }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
 
     useEffect(() => {
-        if (!canvasStateLoaded) return;
+        if (!authLoaded || !canvasStateLoaded) return;
         if (saveTimerRef.current !== null) {
             clearTimeout(saveTimerRef.current);
         }
@@ -264,6 +274,10 @@ export const InfiniteCanvas = () => {
 
         saveTimerRef.current = window.setTimeout(async () => {
             window.localStorage.setItem(draftKey, snapshot);
+            if (!isSignedIn) {
+                return;
+            }
+
             try {
                 const response = await fetch('/api/canvas-state', {
                     method: 'POST',
@@ -283,7 +297,7 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [canvasStateLoaded, persistedCanvasState]);
+    }, [authLoaded, canvasStateLoaded, isSignedIn, persistedCanvasState]);
 
     // Global selection listener for better reliability
     useEffect(() => {

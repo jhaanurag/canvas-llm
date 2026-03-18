@@ -68,12 +68,13 @@ const ChatNodeComponent = ({
 
     // Sync input with initialPrompt when it arrives (since it's set via setTimeout)
     useEffect(() => {
-        if (node.initialPrompt && input === '' && node.messages.length === 0) {
-            setInput(node.initialPrompt);
+        const initialPrompt = node.initialPrompt;
+        if (initialPrompt && input === '' && node.messages.length === 0) {
+            setInput(initialPrompt);
             setTimeout(() => {
                 if (inputRef.current) {
                     inputRef.current.focus();
-                    const end = node.initialPrompt.length;
+                    const end = initialPrompt.length;
                     inputRef.current.setSelectionRange(end, end);
                 }
             }, 10);
@@ -227,7 +228,7 @@ const ChatNodeComponent = ({
     useEffect(() => {
         if (!messageMenu) return;
         const closeMenu = (event: PointerEvent) => {
-            const target = event.target as Node | null;
+            const target = event.target as globalThis.Node | null;
             if (target && messageMenuRef.current?.contains(target)) return;
             setMessageMenu(null);
         };
