@@ -13,6 +13,9 @@ type ChatMessage = {
     content: string | ChatContentPart[];
 };
 
+const RENDER_COLD_START_MESSAGE =
+    "The AI service is temporarily unavailable right now. Please try again in a moment.\n\nHeads up: the Render proxy may take a little time to wake up on the first request. 🙋 Wait 20-60 seconds, then try again.";
+
 export async function* streamGeminiResponse(
     prompt: string,
     history: ChatHistoryEntry[] = [],
@@ -71,7 +74,10 @@ export async function* streamGeminiResponse(
         if (!response.ok) {
             const err = await response.text();
             console.error('[LLM Error]', response.status, err);
-            throw new Error(`LLM Proxy returned ${response.status}: ${err}`);
+            if (response.status === 502) {
+                throw new Error(err || RENDER_COLD_START_MESSAGE);
+            }
+            throw new Error(err || `LLM Proxy returned ${response.status}`);
         }
 
         const reader = response.body?.getReader();
@@ -112,5 +118,3 @@ export async function* streamGeminiResponse(
         }
     }
 }
-
-

@@ -13,6 +13,9 @@ const STREAM_HEADERS = {
     Connection: 'keep-alive',
 } as const;
 
+const PROXY_UNAVAILABLE_MESSAGE =
+    "The AI service is temporarily unavailable right now. Please try again in a moment. Heads up: the Render proxy can take a little time to wake up on the first request. 🙋 Give it 20-60 seconds, then try again.";
+
 // ── Simple in-memory sliding-window rate limiter ──
 // Limits each user to RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW_MS.
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
@@ -148,8 +151,7 @@ export async function POST(request: Request) {
         }
     }
 
-    return new Response(
-        `Unable to reach either LLM proxy. ${failures.join(' | ')}`,
-        { status: 502 }
-    );
+    console.error('[LLM Proxy Failover Error]', failures.join(' | '));
+
+    return new Response(PROXY_UNAVAILABLE_MESSAGE, { status: 502 });
 }

@@ -193,6 +193,7 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
     scrollbar-color: transparent transparent;
+    scrollbar-gutter: stable;
   }
 
   .hover-scroll-y::-webkit-scrollbar {

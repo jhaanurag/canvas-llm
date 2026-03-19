@@ -45,11 +45,23 @@ const contextItemValidator = v.object({
 });
 
 export default defineSchema({
+  users: defineTable({
+    username: v.string(),
+    usernameLower: v.string(),
+    email: v.string(),
+    emailLower: v.string(),
+    passwordHash: v.string(),
+    passwordSalt: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_username_lower", ["usernameLower"])
+    .index("by_email_lower", ["emailLower"]),
   canvasStates: defineTable({
-    clerkUserId: v.string(),
+    userId: v.string(),
     nodes: v.array(nodeValidator),
     connections: v.array(connectionValidator),
     contextBuffer: v.array(contextItemValidator),
     updatedAt: v.number(),
-  }).index("by_clerk_user_id", ["clerkUserId"]),
+  }).index("by_user_id", ["userId"]),
 });

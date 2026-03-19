@@ -1,4 +1,3 @@
-// export default clerkMiddleware();
 export default function noAuthMiddleware() {}
 
 export const config = {

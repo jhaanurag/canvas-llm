@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { CanvasLoadingSkeleton } from "@/components/CanvasLoadingSkeleton";
 
 // Dynamically import the canvas to avoid SSR/prerendering issues with
-// Convex and Clerk hooks that require a browser environment.
+// browser-only Convex and canvas state hooks.
 const ClientCanvas = dynamic(
   () =>
     import("@/components/canvas/CanvasPage").then((mod) => mod.CanvasPage),

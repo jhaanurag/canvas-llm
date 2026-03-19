@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /** Maximum nodes per canvas to prevent unbounded growth. */
@@ -48,32 +48,21 @@ const contextItemValidator = v.object({
   sourceNodeId: v.string(),
 });
 
-/**
- * Save (upsert) the canvas state for the authenticated user.
- */
-export const save = mutation({
+export const saveForUserId = internalMutation({
   args: {
+    userId: v.string(),
     nodes: v.array(nodeValidator),
     connections: v.array(connectionValidator),
     contextBuffer: v.array(contextItemValidator),
   },
   handler: async (ctx, args) => {
-    // const identity = await ctx.auth.getUserIdentity();
-    // if (!identity) {
-    //   throw new Error("Authentication required to save canvas state.");
-    // }
-
-    // const clerkUserId = identity.subject;
-    const clerkUserId = "temp-dev-user";
-
-    // Enforce size limits
     const nodes = args.nodes.slice(0, MAX_NODES);
     const connections = args.connections.slice(0, MAX_CONNECTIONS);
     const contextBuffer = args.contextBuffer.slice(0, MAX_CONTEXT_ITEMS);
 
     const existing = await ctx.db
       .query("canvasStates")
-      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", clerkUserId))
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
       .unique();
 
     if (existing) {
@@ -83,35 +72,25 @@ export const save = mutation({
         contextBuffer,
         updatedAt: Date.now(),
       });
-    } else {
-      await ctx.db.insert("canvasStates", {
-        clerkUserId,
-        nodes,
-        connections,
-        contextBuffer,
-        updatedAt: Date.now(),
-      });
+      return;
     }
+
+    await ctx.db.insert("canvasStates", {
+      userId: args.userId,
+      nodes,
+      connections,
+      contextBuffer,
+      updatedAt: Date.now(),
+    });
   },
 });
 
-/**
- * Clear the canvas state for the authenticated user.
- */
-export const clear = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // const identity = await ctx.auth.getUserIdentity();
-    // if (!identity) {
-    //   throw new Error("Authentication required to clear canvas state.");
-    // }
-
-    // const clerkUserId = identity.subject;
-    const clerkUserId = "temp-dev-user";
-
+export const clearForUserId = internalMutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
     const existing = await ctx.db
       .query("canvasStates")
-      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", clerkUserId))
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
     if (existing) {

@@ -2,13 +2,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useQuery, useMutation } from 'convex/react';
+import type { FunctionReference } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
 import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
+import { AuthDialog } from '@/components/auth/AuthDialog';
+import { SavePrompt } from '@/components/auth/SavePrompt';
+import { getConvexBrowserClient } from '@/lib/convexBrowserClient';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
 import { Hand, Image as ImageIcon, Keyboard, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
@@ -19,14 +22,34 @@ const WORLD_MIN_Y = -5000;
 const WORLD_MAX_Y = 5000;
 const WORLD_WIDTH = WORLD_MAX_X - WORLD_MIN_X;
 const WORLD_HEIGHT = WORLD_MAX_Y - WORLD_MIN_Y;
+const AUTH_SESSION_KEY = 'canvas-auth-session';
+const UNSAVED_DRAFT_KEY = 'canvas-unsaved-state';
+
+type SessionUser = {
+    id: string;
+    username: string;
+    email: string;
+};
+
+type AuthSession = {
+    token: string;
+    user: SessionUser;
+};
+
+const publicApi = api as unknown as {
+    auth: {
+        getCurrentUser: FunctionReference<'action', 'public', Record<string, unknown>, SessionUser | null>;
+        register: FunctionReference<'action', 'public', Record<string, unknown>, AuthSession>;
+        login: FunctionReference<'action', 'public', Record<string, unknown>, AuthSession>;
+    };
+    canvasStateActions: {
+        load: FunctionReference<'action', 'public', Record<string, unknown>, CanvasState | null>;
+        save: FunctionReference<'action', 'public', Record<string, unknown>, null>;
+    };
+};
 
 export const InfiniteCanvas = () => {
-    // const { isLoaded: authLoaded, isSignedIn } = useAuth();
-    const authLoaded = true;
-    const isSignedIn = true;
-
-    const convexCanvasState = useQuery(api.canvasState.get);
-    const saveCanvasMutation = useMutation(api.canvasStateMutations.save);
+    const convexClient = useMemo(() => getConvexBrowserClient(), []);
 
     const [nodes, setNodes] = useState<Node[]>([]);
     const [connections, setConnections] = useState<Connection[]>([]);
@@ -36,7 +59,7 @@ export const InfiniteCanvas = () => {
     const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
-    const [isBeautifulUI, setIsBeautifulUI] = useState(false);
+    const [isBeautifulUI, setIsBeautifulUI] = useState(true);
     const [snapToGrid, setSnapToGrid] = useState(true);
     const [gridResolution, setGridResolution] = useState(20);
     const [sharpEdges, setSharpEdges] = useState(false);
@@ -47,6 +70,15 @@ export const InfiniteCanvas = () => {
     const [textColor, setTextColor] = useState('#1b2b33');
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
     const [canvasStateLoaded, setCanvasStateLoaded] = useState(false);
+    const [authLoaded, setAuthLoaded] = useState(false);
+    const [session, setSession] = useState<AuthSession | null>(null);
+    const [authDialogMode, setAuthDialogMode] = useState<'sign-in' | 'create-account' | null>(null);
+    const [authPending, setAuthPending] = useState(false);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [showSavePrompt, setShowSavePrompt] = useState(false);
+    const [savePromptDismissed, setSavePromptDismissed] = useState(false);
+    const [interactionScore, setInteractionScore] = useState(0);
+    const [firstInteractionAt, setFirstInteractionAt] = useState<number | null>(null);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
@@ -81,6 +113,10 @@ export const InfiniteCanvas = () => {
     const saveTimerRef = useRef<number | null>(null);
     const lastSavedSnapshotRef = useRef('');
     const spawnIndexRef = useRef(0);
+    const hasPromptedToSaveRef = useRef(false);
+    const lastInteractionSnapshotRef = useRef('');
+
+    const isSignedIn = !!session;
 
     useEffect(() => {
         offsetRef.current = offset;
@@ -110,7 +146,7 @@ export const InfiniteCanvas = () => {
 
     useEffect(() => {
         const storedMode = window.localStorage.getItem('canvas-ui-mode');
-        const nextIsBeautifulUI = storedMode === 'beautiful' ? true : storedMode === 'fast' ? false : false;
+        const nextIsBeautifulUI = storedMode === 'beautiful' ? true : storedMode === 'fast' ? false : true;
 
         const storedSnap = window.localStorage.getItem('canvas-snap-to-grid');
         const nextSnapToGrid = storedSnap === 'off' ? false : true;
@@ -198,22 +234,77 @@ export const InfiniteCanvas = () => {
         })),
     }), []);
 
+    const persistSession = useCallback((nextSession: AuthSession | null) => {
+        setSession(nextSession);
+        if (nextSession) {
+            window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+        } else {
+            window.localStorage.removeItem(AUTH_SESSION_KEY);
+        }
+    }, []);
+
+    const applyState = useCallback((nextState: CanvasState) => {
+        const sanitized = sanitizeStateForStorage(nextState);
+        setNodes(sanitized.nodes);
+        setConnections(sanitized.connections);
+        setContextBuffer(sanitized.contextBuffer ?? []);
+        lastSavedSnapshotRef.current = JSON.stringify(sanitized);
+    }, [sanitizeStateForStorage]);
+
+    const clearSession = useCallback(() => {
+        persistSession(null);
+        setAuthError(null);
+    }, [persistSession]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const hydrateSession = async () => {
+            if (!convexClient) {
+                setAuthLoaded(true);
+                return;
+            }
+
+            const rawSession = window.localStorage.getItem(AUTH_SESSION_KEY);
+            if (!rawSession) {
+                setAuthLoaded(true);
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(rawSession) as AuthSession;
+                const user = await convexClient.action(publicApi.auth.getCurrentUser, { token: parsed.token });
+
+                if (!cancelled && user) {
+                    setSession({ token: parsed.token, user });
+                }
+                if (!cancelled && !user) {
+                    window.localStorage.removeItem(AUTH_SESSION_KEY);
+                }
+            } catch (error) {
+                console.error('Session restore failed:', error);
+                window.localStorage.removeItem(AUTH_SESSION_KEY);
+            } finally {
+                if (!cancelled) {
+                    setAuthLoaded(true);
+                }
+            }
+        };
+
+        hydrateSession();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [convexClient]);
+
     useEffect(() => {
         if (!authLoaded) return;
 
         let cancelled = false;
-        const draftKey = 'canvas-unsaved-state';
-
-        const applyState = (nextState: CanvasState) => {
-            const sanitized = sanitizeStateForStorage(nextState);
-            setNodes(sanitized.nodes);
-            setConnections(sanitized.connections);
-            setContextBuffer(sanitized.contextBuffer ?? []);
-            lastSavedSnapshotRef.current = JSON.stringify(sanitized);
-        };
 
         const restoreDraft = () => {
-            const draftRaw = window.localStorage.getItem(draftKey);
+            const draftRaw = window.localStorage.getItem(UNSAVED_DRAFT_KEY);
             if (!draftRaw) return false;
             try {
                 const draft = JSON.parse(draftRaw) as CanvasState;
@@ -223,29 +314,42 @@ export const InfiniteCanvas = () => {
                 }
                 return true;
             } catch {
-                window.localStorage.removeItem(draftKey);
+                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
                 return false;
             }
         };
 
         const loadCanvasState = async () => {
-            if (!isSignedIn) {
+            if (!isSignedIn || !convexClient || !session) {
                 restoreDraft();
                 setCanvasStateLoaded(true);
                 return;
             }
 
-            // Using standard Convex useQuery instead of a fetch to /api/canvas-state
-            if (convexCanvasState !== undefined) {
-                if (convexCanvasState) {
-                    if (!cancelled) {
-                        applyState(convexCanvasState as CanvasState);
+            try {
+                const remoteCanvasState = await convexClient.action(publicApi.canvasStateActions.load, {
+                    token: session.token,
+                });
+
+                if (!cancelled) {
+                    if (remoteCanvasState) {
+                        applyState(remoteCanvasState as CanvasState);
                         showToast('Restored saved canvas');
+                    } else {
+                        restoreDraft();
                     }
-                } else {
-                    restoreDraft();
+                    setCanvasStateLoaded(true);
                 }
-                setCanvasStateLoaded(true);
+            } catch (error) {
+                console.error('Canvas state load failed:', error);
+                if (!cancelled) {
+                    restoreDraft();
+                    setCanvasStateLoaded(true);
+                }
+
+                if (error instanceof Error && error.message.includes('sign in again')) {
+                    clearSession();
+                }
             }
         };
 
@@ -254,40 +358,44 @@ export const InfiniteCanvas = () => {
         return () => {
             cancelled = true;
         };
-    }, [authLoaded, isSignedIn, sanitizeStateForStorage, showToast, convexCanvasState]);
+    }, [applyState, authLoaded, clearSession, convexClient, isSignedIn, session, showToast]);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
         connections,
         contextBuffer,
     }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
+    const persistedContextBuffer = persistedCanvasState.contextBuffer ?? [];
 
     useEffect(() => {
         if (!authLoaded || !canvasStateLoaded) return;
         if (saveTimerRef.current !== null) {
             clearTimeout(saveTimerRef.current);
         }
-        const draftKey = 'canvas-unsaved-state';
         const snapshot = JSON.stringify(persistedCanvasState);
         if (snapshot === lastSavedSnapshotRef.current) return;
 
         saveTimerRef.current = window.setTimeout(async () => {
-            window.localStorage.setItem(draftKey, snapshot);
-            if (!isSignedIn) {
+            window.localStorage.setItem(UNSAVED_DRAFT_KEY, snapshot);
+            if (!isSignedIn || !convexClient || !session) {
                 return;
             }
 
             try {
-                // Using standard Convex mutation instead of a fetch to /api/canvas-state
-                await saveCanvasMutation({
+                await convexClient.action(publicApi.canvasStateActions.save, {
+                    token: session.token,
                     nodes: persistedCanvasState.nodes,
                     connections: persistedCanvasState.connections,
-                    contextBuffer: persistedCanvasState.contextBuffer || [],
+                    contextBuffer: persistedContextBuffer,
                 });
                 lastSavedSnapshotRef.current = snapshot;
-                window.localStorage.removeItem(draftKey);
+                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
             } catch (error) {
                 console.error('Canvas state save failed:', error);
+                if (error instanceof Error && error.message.includes('sign in again')) {
+                    clearSession();
+                    showToast('Session expired. Sign in again to keep syncing.');
+                }
             }
         }, 700);
 
@@ -296,7 +404,136 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [authLoaded, canvasStateLoaded, isSignedIn, persistedCanvasState, saveCanvasMutation]);
+    }, [authLoaded, canvasStateLoaded, clearSession, convexClient, isSignedIn, persistedCanvasState, session, showToast]);
+
+    useEffect(() => {
+        if (!authLoaded || !canvasStateLoaded || isSignedIn || savePromptDismissed) return;
+
+        const hasCanvasActivity =
+            persistedCanvasState.nodes.length > 0 ||
+            persistedCanvasState.connections.length > 0 ||
+            persistedContextBuffer.length > 0;
+
+        if (!hasCanvasActivity) {
+            return;
+        }
+
+        const snapshot = JSON.stringify(persistedCanvasState);
+        if (!firstInteractionAt) {
+            setFirstInteractionAt(Date.now());
+        }
+        if (snapshot !== lastInteractionSnapshotRef.current) {
+            lastInteractionSnapshotRef.current = snapshot;
+            setInteractionScore((prev) => prev + 1);
+        }
+    }, [authLoaded, canvasStateLoaded, firstInteractionAt, isSignedIn, persistedCanvasState, savePromptDismissed]);
+
+    useEffect(() => {
+        if (!authLoaded || isSignedIn || savePromptDismissed || hasPromptedToSaveRef.current) return;
+        if (!firstInteractionAt) return;
+
+        const elapsed = Date.now() - firstInteractionAt;
+        const shouldPrompt = interactionScore >= 4 || elapsed >= 20_000;
+
+        if (shouldPrompt) {
+            hasPromptedToSaveRef.current = true;
+            setShowSavePrompt(true);
+            return;
+        }
+
+        const remaining = 20_000 - elapsed;
+        const timer = window.setTimeout(() => {
+            if (hasPromptedToSaveRef.current) return;
+            hasPromptedToSaveRef.current = true;
+            setShowSavePrompt(true);
+        }, Math.max(remaining, 1000));
+
+        return () => window.clearTimeout(timer);
+    }, [authLoaded, firstInteractionAt, interactionScore, isSignedIn, savePromptDismissed]);
+
+    const hasMeaningfulLocalCanvas = persistedCanvasState.nodes.length > 0 || persistedCanvasState.connections.length > 0 || persistedContextBuffer.length > 0;
+
+    const finishAuth = useCallback(async (nextSession: AuthSession) => {
+        persistSession(nextSession);
+        setAuthDialogMode(null);
+        setAuthError(null);
+        setShowSavePrompt(false);
+
+        if (!convexClient) {
+            showToast('Signed in locally, but Convex is not configured here.');
+            return;
+        }
+
+        try {
+            if (hasMeaningfulLocalCanvas) {
+                await convexClient.action(publicApi.canvasStateActions.save, {
+                    token: nextSession.token,
+                    nodes: persistedCanvasState.nodes,
+                    connections: persistedCanvasState.connections,
+                    contextBuffer: persistedContextBuffer,
+                });
+                lastSavedSnapshotRef.current = JSON.stringify(persistedCanvasState);
+                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
+                showToast('Signed in. Your current canvas is now saved.');
+            } else {
+                const remoteCanvasState = await convexClient.action(publicApi.canvasStateActions.load, {
+                    token: nextSession.token,
+                });
+                if (remoteCanvasState) {
+                    applyState(remoteCanvasState as CanvasState);
+                    showToast('Signed in. Restored your saved canvas.');
+                } else {
+                    showToast('Signed in. New changes will now save to your account.');
+                }
+            }
+        } catch (error) {
+            console.error('Post-auth canvas sync failed:', error);
+            showToast('Signed in, but the first sync did not complete. Your local draft is still here.');
+        } finally {
+            setCanvasStateLoaded(true);
+        }
+    }, [applyState, convexClient, hasMeaningfulLocalCanvas, persistSession, persistedCanvasState, showToast]);
+
+    const handleAuthSubmit = useCallback(async ({
+        mode,
+        username,
+        email,
+        identifier,
+        password,
+    }: {
+        mode: 'sign-in' | 'create-account';
+        username: string;
+        email: string;
+        identifier: string;
+        password: string;
+    }) => {
+        if (!convexClient) {
+            setAuthError('Convex is not configured in this environment, so cloud save is unavailable.');
+            return;
+        }
+
+        setAuthPending(true);
+        setAuthError(null);
+
+        try {
+            const result = mode === 'create-account'
+                ? await convexClient.action(publicApi.auth.register, { username, email, password })
+                : await convexClient.action(publicApi.auth.login, { identifier, password });
+
+            await finishAuth(result);
+        } catch (error) {
+            setAuthError(error instanceof Error ? error.message : 'Authentication failed.');
+        } finally {
+            setAuthPending(false);
+        }
+    }, [convexClient, finishAuth]);
+
+    const handleSignOut = useCallback(() => {
+        clearSession();
+        setShowSavePrompt(false);
+        setAuthDialogMode(null);
+        showToast('Signed out. Local draft saving stays on.');
+    }, [clearSession, showToast]);
 
     // Global selection listener for better reliability
     useEffect(() => {
@@ -1043,6 +1280,49 @@ export const InfiniteCanvas = () => {
                     : {})
             }}
         >
+            <div
+                data-ui-overlay
+                className="pointer-events-none fixed right-4 top-4 z-[2100] flex justify-end"
+            >
+                <div
+                    className={clsx(
+                        "pointer-events-auto flex items-center gap-2 border px-3 py-2 text-[11px] font-semibold shadow-[0_10px_26px_rgba(33,36,41,0.12)]",
+                        sharpEdges ? "rounded-none" : "rounded-full"
+                    )}
+                    style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}35` }}
+                >
+                    {isSignedIn && session ? (
+                        <>
+                            <span className="max-w-[10rem] truncate">@{session.user.username}</span>
+                            <button
+                                type="button"
+                                onClick={handleSignOut}
+                                className="rounded-full border border-[#1b2b33]/12 px-3 py-1 text-[10px] uppercase tracking-[0.12em] transition hover:border-[color:var(--canvas-accent-70)]"
+                            >
+                                Sign out
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <span>{convexClient ? 'Sign in to save' : 'Local-only mode'}</span>
+                            {convexClient && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAuthError(null);
+                                        setAuthDialogMode('sign-in');
+                                    }}
+                                    className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.12em]"
+                                    style={{ backgroundColor: accentColor, color: accentTextColor }}
+                                >
+                                    Sign in
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
             {/* Unified Dock UI */}
             <div data-ui-overlay className={clsx("pointer-events-none fixed left-0 right-0 z-[2000] flex flex-col items-center gap-2 px-3", dockContainerPositionClass)}>
                 {showCanvasSettings && (
@@ -1460,6 +1740,37 @@ export const InfiniteCanvas = () => {
                 >
                     {toast.message}
                 </div>
+            )}
+
+            {showSavePrompt && !isSignedIn && convexClient && (
+                <SavePrompt
+                    onDismiss={() => {
+                        setShowSavePrompt(false);
+                        setSavePromptDismissed(true);
+                    }}
+                    onOpenAuth={() => {
+                        setShowSavePrompt(false);
+                        setAuthError(null);
+                        setAuthDialogMode('create-account');
+                    }}
+                />
+            )}
+
+            {authDialogMode && (
+                <AuthDialog
+                    mode={authDialogMode}
+                    busy={authPending}
+                    error={authError}
+                    onClose={() => {
+                        setAuthDialogMode(null);
+                        setAuthError(null);
+                    }}
+                    onModeChange={(mode) => {
+                        setAuthDialogMode(mode);
+                        setAuthError(null);
+                    }}
+                    onSubmit={handleAuthSubmit}
+                />
             )}
 
             {showMinimap && (

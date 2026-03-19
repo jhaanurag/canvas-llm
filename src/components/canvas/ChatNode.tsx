@@ -439,8 +439,8 @@ const ChatNodeComponent = ({
                                     <div
                                         key={msg.id}
                                         className={clsx(
-                                            "flex flex-col max-w-[94%]",
-                                            msg.role === 'user' ? "ml-auto items-end" : "items-start"
+                                            "flex w-full",
+                                            msg.role === 'user' ? "justify-end" : "justify-start"
                                         )}
                                     >
                                         <div
@@ -450,7 +450,7 @@ const ChatNodeComponent = ({
                                                 openMessageMenu(index, e.clientX, e.clientY);
                                             }}
                                             className={clsx(
-                                                "break-words px-4 py-2 text-xs leading-tight overflow-wrap-anywhere border font-medium",
+                                                "min-w-0 max-w-[94%] break-words px-4 py-2 text-xs leading-tight border font-medium",
                                                 dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                 msg.role === 'user'
                                                     ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "")
@@ -459,7 +459,7 @@ const ChatNodeComponent = ({
                                             )}
                                             style={{
                                                 wordWrap: 'break-word',
-                                                overflowWrap: 'break-word',
+                                                overflowWrap: 'anywhere',
                                                 whiteSpace: 'pre-wrap',
                                                 borderTopLeftRadius: sharpEdges ? 0 : 'var(--canvas-radius-md)',
                                                 borderTopRightRadius: sharpEdges ? 0 : 'var(--canvas-radius-md)',
