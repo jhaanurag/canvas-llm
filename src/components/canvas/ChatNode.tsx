@@ -1,7 +1,8 @@
 
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Node, Message } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -79,7 +80,7 @@ const ChatNodeComponent = ({
                 }
             }, 10);
         }
-    }, [node.initialPrompt]);
+    }, [input, node.initialPrompt, node.messages.length]);
     const [isDragging, setIsDragging] = useState(false);
     const [activePanel, setActivePanel] = useState<'chat' | 'system'>('chat');
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -90,7 +91,7 @@ const ChatNodeComponent = ({
         if (node.initialAttachments && attachedFiles.length === 0 && node.messages.length === 0) {
             setAttachedFiles(node.initialAttachments);
         }
-    }, [node.initialAttachments]);
+    }, [attachedFiles.length, node.initialAttachments, node.messages.length]);
     const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
@@ -152,11 +153,6 @@ const ChatNodeComponent = ({
         };
     }, [isDragging, dragStart, updatePos]);
 
-    useEffect(() => {
-        if (node.autoSend && node.initialPrompt && node.messages.length === 0) {
-            sendMessage(node.initialPrompt);
-        }
-    }, [node.initialPrompt, node.autoSend]);
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
         if (!files) return;
@@ -173,7 +169,7 @@ const ChatNodeComponent = ({
         });
     };
 
-    const sendMessage = async (overridePrompt?: string) => {
+    const sendMessage = useCallback(async (overridePrompt?: string) => {
         const text = overridePrompt || input;
         if (!text.trim() && attachedFiles.length === 0) return;
 
@@ -217,7 +213,13 @@ const ChatNodeComponent = ({
             console.error('Gemini error:', error);
             updateMessages([...newMessages, { ...assistantMsg, text: 'Error: Failed to get response.' }]);
         }
-    };
+    }, [attachedFiles, input, node.messages, systemPrompt, updateMessages]);
+
+    useEffect(() => {
+        if (node.autoSend && node.initialPrompt && node.messages.length === 0) {
+            sendMessage(node.initialPrompt);
+        }
+    }, [node.autoSend, node.initialPrompt, node.messages.length, sendMessage]);
 
     useEffect(() => {
         if (!contextFeedback) return;
@@ -472,10 +474,14 @@ const ChatNodeComponent = ({
                                                 <div className="flex flex-col gap-2 mb-2">
                                                     {msg.attachments.map((file, idx: number) => (
                                                         file.mimeType.startsWith('image/') ? (
-                                                            <img
+                                                            <Image
                                                                 key={idx}
                                                                 src={file.data}
                                                                 alt={file.name}
+                                                                width={1200}
+                                                                height={1200}
+                                                                unoptimized
+                                                                sizes="(max-width: 768px) 100vw, 24rem"
                                                                 className={clsx("h-auto max-w-full border border-[#1b2b33]/20", headerButtonRadiusClass)}
                                                             />
                                                         ) : (

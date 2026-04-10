@@ -19,7 +19,7 @@ export function SavePrompt({ onDismiss, onOpenAuth }: SavePromptProps) {
             You’ve been building for a bit. Sign in to save this canvas to your account.
           </div>
           <div className="mt-1 text-sm leading-6 text-[#48606a]">
-            Local changes stay on this device for now. Signing in turns on cloud save in Convex.
+            Local changes stay on this device for now. Creating an email/password account turns on cloud save in Convex.
           </div>
         </div>
         <div className="flex items-center gap-2">

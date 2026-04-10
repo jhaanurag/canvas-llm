@@ -99,6 +99,10 @@ export function verifySessionToken(token: string): SessionUser | null {
   const [encodedHeader, encodedPayload, signature] = parts;
   const expectedSignature = signJwtPart(`${encodedHeader}.${encodedPayload}`);
 
+  if (signature.length !== expectedSignature.length) {
+    return null;
+  }
+
   if (
     !timingSafeEqual(
       encoder.encode(signature),
@@ -124,20 +128,4 @@ export function verifySessionToken(token: string): SessionUser | null {
   } catch {
     return null;
   }
-}
-
-export function normalizeIdentifier(value: string) {
-  return value.trim().toLowerCase();
-}
-
-export function normalizeUsername(value: string) {
-  return value.trim().toLowerCase();
-}
-
-export function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-export function isValidUsername(value: string) {
-  return /^[a-zA-Z0-9_]{3,24}$/.test(value);
 }

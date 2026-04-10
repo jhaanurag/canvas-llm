@@ -1,19 +1,16 @@
 "use node";
 
 import type { FunctionReference } from "convex/server";
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import { action } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import {
   createPasswordRecord,
   createSessionToken,
-  isValidEmail,
-  isValidUsername,
-  normalizeIdentifier,
-  normalizeUsername,
   verifyPassword,
   verifySessionToken,
 } from "./authShared";
+import { isValidEmail, isValidUsername } from "./authUtils";
 
 const publicUserValidator = v.object({
   id: v.string(),
@@ -21,7 +18,7 @@ const publicUserValidator = v.object({
   email: v.string(),
 });
 const internalApi = internal as unknown as {
-  auth: {
+  authModel: {
     createUser: FunctionReference<"mutation", "internal", Record<string, unknown>, {
       id: string;
       username: string;
@@ -41,80 +38,6 @@ const internalApi = internal as unknown as {
     } | null>;
   };
 };
-
-export const getUserByIdentifier = internalQuery({
-  args: { identifier: v.string() },
-  handler: async (ctx, { identifier }) => {
-    const normalized = normalizeIdentifier(identifier);
-    const byEmail = await ctx.db
-      .query("users")
-      .withIndex("by_email_lower", (q) => q.eq("emailLower", normalized))
-      .unique();
-
-    if (byEmail) {
-      return byEmail;
-    }
-
-    return await ctx.db
-      .query("users")
-      .withIndex("by_username_lower", (q) => q.eq("usernameLower", normalized))
-      .unique();
-  },
-});
-
-export const getUserById = internalQuery({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
-    return await ctx.db.get(userId as never);
-  },
-});
-
-export const createUser = internalMutation({
-  args: {
-    username: v.string(),
-    email: v.string(),
-    passwordHash: v.string(),
-    passwordSalt: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const usernameLower = normalizeUsername(args.username);
-    const emailLower = normalizeIdentifier(args.email);
-
-    const existingByUsername = await ctx.db
-      .query("users")
-      .withIndex("by_username_lower", (q) => q.eq("usernameLower", usernameLower))
-      .unique();
-    if (existingByUsername) {
-      throw new Error("That username is already taken.");
-    }
-
-    const existingByEmail = await ctx.db
-      .query("users")
-      .withIndex("by_email_lower", (q) => q.eq("emailLower", emailLower))
-      .unique();
-    if (existingByEmail) {
-      throw new Error("That email is already registered.");
-    }
-
-    const now = Date.now();
-    const userId = await ctx.db.insert("users", {
-      username: args.username,
-      usernameLower,
-      email: args.email,
-      emailLower,
-      passwordHash: args.passwordHash,
-      passwordSalt: args.passwordSalt,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    return {
-      id: userId,
-      username: args.username,
-      email: args.email,
-    };
-  },
-});
 
 export const register = action({
   args: {
@@ -142,7 +65,7 @@ export const register = action({
     }
 
     const { salt, hash } = createPasswordRecord(password);
-    const user = await ctx.runMutation(internalApi.auth.createUser, {
+    const user = await ctx.runMutation(internalApi.authModel.createUser, {
       username,
       email,
       passwordHash: hash,
@@ -166,7 +89,7 @@ export const login = action({
     user: publicUserValidator,
   }),
   handler: async (ctx, args) => {
-    const user = await ctx.runQuery(internalApi.auth.getUserByIdentifier, {
+    const user = await ctx.runQuery(internalApi.authModel.getUserByIdentifier, {
       identifier: args.identifier,
     });
 
@@ -196,7 +119,7 @@ export const getCurrentUser = action({
       return null;
     }
 
-    const user = await ctx.runQuery(internalApi.auth.getUserById, {
+    const user = await ctx.runQuery(internalApi.authModel.getUserById, {
       userId: sessionUser.id,
     });
 

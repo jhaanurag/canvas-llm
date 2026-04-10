@@ -45,7 +45,7 @@ export function AuthDialog({
               {mode === "sign-in" ? "Sign in to keep your canvas synced" : "Create an account to save your canvas"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#35515b]">
-              Your canvas can still run locally, but signing in saves it to your account in Convex.
+              Your canvas can still run locally, but email/password sign-in saves it to your account in Convex.
             </p>
           </div>
           <button
@@ -145,7 +145,7 @@ export function AuthDialog({
 
           <div className="flex items-center justify-between gap-3 pt-2">
             <div className="text-xs leading-5 text-[#5a7079]">
-              {mode === "create-account" ? "A username helps you sign back in quickly." : "Use the email or username you signed up with."}
+              {mode === "create-account" ? "Use a username plus email/password for your saved workspace." : "Sign in with the email or username tied to your password."}
             </div>
             <Button
               type="submit"

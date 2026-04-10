@@ -25,6 +25,36 @@ const WORLD_HEIGHT = WORLD_MAX_Y - WORLD_MIN_Y;
 const AUTH_SESSION_KEY = 'canvas-auth-session';
 const UNSAVED_DRAFT_KEY = 'canvas-unsaved-state';
 
+function readStoredCanvasDraft(): CanvasState | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const rawDraft = window.localStorage.getItem(UNSAVED_DRAFT_KEY);
+    if (!rawDraft) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(rawDraft) as CanvasState;
+        return {
+            nodes: Array.isArray(parsed.nodes) ? parsed.nodes : [],
+            connections: Array.isArray(parsed.connections) ? parsed.connections : [],
+            contextBuffer: Array.isArray(parsed.contextBuffer) ? parsed.contextBuffer : [],
+        };
+    } catch {
+        window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
+        return null;
+    }
+}
+
+function hasCanvasContent(state: CanvasState | null) {
+    return Boolean(
+        state &&
+        (state.nodes.length > 0 || state.connections.length > 0 || (state.contextBuffer?.length ?? 0) > 0)
+    );
+}
+
 type SessionUser = {
     id: string;
     username: string;
@@ -50,13 +80,16 @@ const publicApi = api as unknown as {
 
 export const InfiniteCanvas = () => {
     const convexClient = useMemo(() => getConvexBrowserClient(), []);
+    const initialDraftRef = useRef<CanvasState | null>(readStoredCanvasDraft());
+    const draftIsHydratedRef = useRef(hasCanvasContent(initialDraftRef.current));
+    const hasPendingLocalEditsRef = useRef(false);
 
-    const [nodes, setNodes] = useState<Node[]>([]);
-    const [connections, setConnections] = useState<Connection[]>([]);
+    const [nodes, setNodes] = useState<Node[]>(() => initialDraftRef.current?.nodes ?? []);
+    const [connections, setConnections] = useState<Connection[]>(() => initialDraftRef.current?.connections ?? []);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [activeTool, setActiveTool] = useState('select');
-    const [contextBuffer, setContextBuffer] = useState<ContextItem[]>([]);
+    const [contextBuffer, setContextBuffer] = useState<ContextItem[]>(() => initialDraftRef.current?.contextBuffer ?? []);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
     const [isBeautifulUI, setIsBeautifulUI] = useState(true);
@@ -69,7 +102,7 @@ export const InfiniteCanvas = () => {
     const [gridColor, setGridColor] = useState('#1b2b33');
     const [textColor, setTextColor] = useState('#1b2b33');
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
-    const [canvasStateLoaded, setCanvasStateLoaded] = useState(false);
+    const [canvasStateLoaded, setCanvasStateLoaded] = useState(draftIsHydratedRef.current);
     const [authLoaded, setAuthLoaded] = useState(false);
     const [session, setSession] = useState<AuthSession | null>(null);
     const [authDialogMode, setAuthDialogMode] = useState<'sign-in' | 'create-account' | null>(null);
@@ -83,20 +116,6 @@ export const InfiniteCanvas = () => {
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
     const [showButtonLabels, setShowButtonLabels] = useState(true);
-    const [toast, setToast] = useState<{ id: string; message: string } | null>(null);
-    const toastTimerRef = useRef<number | null>(null);
-
-    const showToast = useCallback((message: string) => {
-        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-
-        const id = uuidv4();
-        setToast({ id, message });
-
-        toastTimerRef.current = window.setTimeout(() => {
-            setToast(prev => prev?.id === id ? null : prev);
-        }, 3000);
-    }, []);
-
     const [isMinimapHovered, setIsMinimapHovered] = useState(false);
     const [isMinimapDragging, setIsMinimapDragging] = useState(false);
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -134,9 +153,6 @@ export const InfiniteCanvas = () => {
         return () => {
             if (panFrameRef.current !== null) {
                 cancelAnimationFrame(panFrameRef.current);
-            }
-            if (toastTimerRef.current !== null) {
-                clearTimeout(toastTimerRef.current);
             }
             if (saveTimerRef.current !== null) {
                 clearTimeout(saveTimerRef.current);
@@ -251,6 +267,10 @@ export const InfiniteCanvas = () => {
         lastSavedSnapshotRef.current = JSON.stringify(sanitized);
     }, [sanitizeStateForStorage]);
 
+    const markLocalEdit = useCallback(() => {
+        hasPendingLocalEditsRef.current = true;
+    }, []);
+
     const clearSession = useCallback(() => {
         persistSession(null);
         setAuthError(null);
@@ -303,25 +323,13 @@ export const InfiniteCanvas = () => {
 
         let cancelled = false;
 
-        const restoreDraft = () => {
-            const draftRaw = window.localStorage.getItem(UNSAVED_DRAFT_KEY);
-            if (!draftRaw) return false;
-            try {
-                const draft = JSON.parse(draftRaw) as CanvasState;
-                if (!cancelled) {
-                    applyState(draft);
-                    showToast('Restored unsaved draft');
-                }
-                return true;
-            } catch {
-                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
-                return false;
-            }
-        };
-
         const loadCanvasState = async () => {
             if (!isSignedIn || !convexClient || !session) {
-                restoreDraft();
+                setCanvasStateLoaded(true);
+                return;
+            }
+
+            if (draftIsHydratedRef.current) {
                 setCanvasStateLoaded(true);
                 return;
             }
@@ -332,18 +340,14 @@ export const InfiniteCanvas = () => {
                 });
 
                 if (!cancelled) {
-                    if (remoteCanvasState) {
+                    if (remoteCanvasState && !hasPendingLocalEditsRef.current) {
                         applyState(remoteCanvasState as CanvasState);
-                        showToast('Restored saved canvas');
-                    } else {
-                        restoreDraft();
                     }
                     setCanvasStateLoaded(true);
                 }
             } catch (error) {
                 console.error('Canvas state load failed:', error);
                 if (!cancelled) {
-                    restoreDraft();
                     setCanvasStateLoaded(true);
                 }
 
@@ -358,14 +362,17 @@ export const InfiniteCanvas = () => {
         return () => {
             cancelled = true;
         };
-    }, [applyState, authLoaded, clearSession, convexClient, isSignedIn, session, showToast]);
+    }, [applyState, authLoaded, clearSession, convexClient, isSignedIn, session]);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
         connections,
         contextBuffer,
     }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
-    const persistedContextBuffer = persistedCanvasState.contextBuffer ?? [];
+    const persistedContextBuffer = useMemo(
+        () => persistedCanvasState.contextBuffer ?? [],
+        [persistedCanvasState.contextBuffer],
+    );
 
     useEffect(() => {
         if (!authLoaded || !canvasStateLoaded) return;
@@ -394,7 +401,6 @@ export const InfiniteCanvas = () => {
                 console.error('Canvas state save failed:', error);
                 if (error instanceof Error && error.message.includes('sign in again')) {
                     clearSession();
-                    showToast('Session expired. Sign in again to keep syncing.');
                 }
             }
         }, 700);
@@ -404,7 +410,7 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [authLoaded, canvasStateLoaded, clearSession, convexClient, isSignedIn, persistedCanvasState, session, showToast]);
+    }, [authLoaded, canvasStateLoaded, clearSession, convexClient, isSignedIn, persistedCanvasState, persistedContextBuffer, session]);
 
     useEffect(() => {
         if (!authLoaded || !canvasStateLoaded || isSignedIn || savePromptDismissed) return;
@@ -426,7 +432,7 @@ export const InfiniteCanvas = () => {
             lastInteractionSnapshotRef.current = snapshot;
             setInteractionScore((prev) => prev + 1);
         }
-    }, [authLoaded, canvasStateLoaded, firstInteractionAt, isSignedIn, persistedCanvasState, savePromptDismissed]);
+    }, [authLoaded, canvasStateLoaded, firstInteractionAt, isSignedIn, persistedCanvasState, persistedContextBuffer.length, savePromptDismissed]);
 
     useEffect(() => {
         if (!authLoaded || isSignedIn || savePromptDismissed || hasPromptedToSaveRef.current) return;
@@ -460,7 +466,6 @@ export const InfiniteCanvas = () => {
         setShowSavePrompt(false);
 
         if (!convexClient) {
-            showToast('Signed in locally, but Convex is not configured here.');
             return;
         }
 
@@ -474,25 +479,20 @@ export const InfiniteCanvas = () => {
                 });
                 lastSavedSnapshotRef.current = JSON.stringify(persistedCanvasState);
                 window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
-                showToast('Signed in. Your current canvas is now saved.');
             } else {
                 const remoteCanvasState = await convexClient.action(publicApi.canvasStateActions.load, {
                     token: nextSession.token,
                 });
                 if (remoteCanvasState) {
                     applyState(remoteCanvasState as CanvasState);
-                    showToast('Signed in. Restored your saved canvas.');
-                } else {
-                    showToast('Signed in. New changes will now save to your account.');
                 }
             }
         } catch (error) {
             console.error('Post-auth canvas sync failed:', error);
-            showToast('Signed in, but the first sync did not complete. Your local draft is still here.');
         } finally {
             setCanvasStateLoaded(true);
         }
-    }, [applyState, convexClient, hasMeaningfulLocalCanvas, persistSession, persistedCanvasState, showToast]);
+    }, [applyState, convexClient, hasMeaningfulLocalCanvas, persistSession, persistedCanvasState, persistedContextBuffer]);
 
     const handleAuthSubmit = useCallback(async ({
         mode,
@@ -532,8 +532,7 @@ export const InfiniteCanvas = () => {
         clearSession();
         setShowSavePrompt(false);
         setAuthDialogMode(null);
-        showToast('Signed out. Local draft saving stays on.');
-    }, [clearSession, showToast]);
+    }, [clearSession]);
 
     // Global selection listener for better reliability
     useEffect(() => {
@@ -787,6 +786,7 @@ export const InfiniteCanvas = () => {
     }, [clampOffsetToWorld]);
 
     const addNode = useCallback((type: Node['type'], x: number, y: number, parentId?: string, sourceSelection?: string) => {
+        markLocalEdit();
         const world = screenToWorld(x, y);
         const width = type === 'chat' ? 400 : type === 'note' ? 250 : 400;
         const height = type === 'chat' ? 500 : type === 'note' ? 200 : 400;
@@ -815,25 +815,18 @@ export const InfiniteCanvas = () => {
             }]);
         }
         return newNode;
-    }, [screenToWorld, snapToGrid, gridResolution, clampNodePosition]);
+    }, [clampNodePosition, gridResolution, markLocalEdit, screenToWorld, snapToGrid]);
 
     const getNextSpawnScreenPoint = useCallback((type: Node['type']) => {
-        const currentOffset = offsetRef.current;
-        const stepX = 460;
-        const stepY = 320;
-        const idx = spawnIndexRef.current;
         spawnIndexRef.current += 1;
-        const col = idx % 3;
-        const row = Math.floor(idx / 3) % 3;
-        const baseX = currentOffset.x + window.innerWidth / 2 - (type === 'note' ? 125 : 200);
-        const baseY = currentOffset.y + window.innerHeight / 3 - (type === 'note' ? 100 : 180);
         return {
-            x: baseX + col * stepX,
-            y: baseY + row * stepY,
+            x: window.innerWidth / 2 - (type === 'note' ? 125 : 200),
+            y: window.innerHeight / 2 - (type === 'note' ? 100 : type === 'drawing' ? 200 : 250),
         };
     }, []);
 
     const updateNodePos = useCallback((id: string, x: number, y: number) => {
+        markLocalEdit();
         const nextX = snapToGrid ? Math.round(x / gridResolution) * gridResolution : x;
         const nextY = snapToGrid ? Math.round(y / gridResolution) * gridResolution : y;
         setNodes((prev) => prev.map((n) => {
@@ -841,7 +834,7 @@ export const InfiniteCanvas = () => {
             const clamped = clampNodePosition(nextX, nextY, n.width, n.height);
             return { ...n, x: clamped.x, y: clamped.y };
         }));
-    }, [snapToGrid, gridResolution, clampNodePosition]);
+    }, [clampNodePosition, gridResolution, markLocalEdit, snapToGrid]);
 
     const bringToFront = useCallback((id: string) => {
         setNodes(prev => {
@@ -852,25 +845,30 @@ export const InfiniteCanvas = () => {
     }, []);
 
     const updateNodeMessages = useCallback((id: string, messages: Message[]) => {
+        markLocalEdit();
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, messages } : n));
-    }, []);
+    }, [markLocalEdit]);
 
     const updateNodeContent = useCallback((id: string, content: string) => {
+        markLocalEdit();
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, content } : n));
-    }, []);
+    }, [markLocalEdit]);
 
     const updateNodeTitle = useCallback((id: string, title: string) => {
+        markLocalEdit();
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, title } : n));
-    }, []);
+    }, [markLocalEdit]);
 
     const updateNodeSystemPrompt = useCallback((id: string, systemPrompt: string) => {
+        markLocalEdit();
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, systemPrompt } : n));
-    }, []);
+    }, [markLocalEdit]);
 
     const deleteNodeImmediately = useCallback((id: string) => {
+        markLocalEdit();
         setNodes(prev => prev.filter(n => n.id !== id));
         setConnections(prev => prev.filter(c => c.fromId !== id && c.toId !== id));
-    }, []);
+    }, [markLocalEdit]);
     const deleteNode = useCallback((id: string) => {
         deleteNodeImmediately(id);
     }, [deleteNodeImmediately]);
@@ -878,9 +876,9 @@ export const InfiniteCanvas = () => {
     const addToContext = useCallback((text: string, sourceNodeId: string, image?: string) => {
         const normalizedText = text.trim();
         if (!normalizedText && !image) return;
+        markLocalEdit();
         setContextBuffer(prev => [...prev, { id: uuidv4(), text: normalizedText || 'Context', sourceNodeId, image }]);
-        showToast(image ? 'Image added to context' : 'Added to context');
-    }, [showToast]);
+    }, [markLocalEdit]);
 
     const branchFromChatMessage = useCallback((nodeId: string, messageIndex: number) => {
         const node = nodes.find((entry) => entry.id === nodeId);
@@ -900,6 +898,7 @@ export const InfiniteCanvas = () => {
             .join('\n\n');
 
         window.setTimeout(() => {
+            markLocalEdit();
             setNodes((prev) => prev.map((entry) => entry.id === branchedNode.id ? {
                 ...entry,
                 initialPrompt: `\n\nContext:\n"${transcript}"`,
@@ -907,12 +906,12 @@ export const InfiniteCanvas = () => {
             } : entry));
         }, 100);
 
-        showToast('Branched chat created');
-    }, [addNode, connections, nodes, showToast, worldToScreen]);
+    }, [addNode, connections, markLocalEdit, nodes, worldToScreen]);
 
     const removeFromContext = useCallback((id: string) => {
+        markLocalEdit();
         setContextBuffer(prev => prev.filter(item => item.id !== id));
-    }, []);
+    }, [markLocalEdit]);
 
     const handleBranch = useCallback((nodeId: string, selection: string, type: 'expand' | 'custom', x: number = 0, y: number = 0, customPrompt?: string, useBuffer: boolean = false) => {
         const node = nodes.find(n => n.id === nodeId);
@@ -955,9 +954,9 @@ export const InfiniteCanvas = () => {
                         mimeType: 'image/png',
                         name: 'drawing.png'
                     }));
+                markLocalEdit();
                 setContextBuffer([]);
                 hasAddedContext = true;
-                showToast("Context added to new chat");
             }
 
             setNodes(prev => prev.map(n => n.id === newNode.id ? {
@@ -968,7 +967,7 @@ export const InfiniteCanvas = () => {
                 autoSend: type === 'expand' // Auto-send only for expand flow
             } : n));
         }, 100);
-    }, [nodes, connections, addNode, contextBuffer, worldToScreen, showToast]);
+    }, [addNode, connections, contextBuffer, markLocalEdit, nodes, worldToScreen]);
 
     useEffect(() => {
         if (!canvasStateLoaded) return;
@@ -1199,6 +1198,7 @@ export const InfiniteCanvas = () => {
                         }));
 
                     setTimeout(() => {
+                        markLocalEdit();
                         setNodes(prev => prev.map(n => n.id === newNode.id ? {
                             ...n,
                             initialPrompt: `\n\nContext:\n${contextText}`,
@@ -1206,7 +1206,6 @@ export const InfiniteCanvas = () => {
                             initialAttachments: images
                         } : n));
                         setContextBuffer([]);
-                        showToast("Context added to new chat");
                     }, 100);
                 }
             },
@@ -1251,7 +1250,7 @@ export const InfiniteCanvas = () => {
                 alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
             },
         },
-    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, getNextSpawnScreenPoint, showToast]);
+    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, getNextSpawnScreenPoint, markLocalEdit]);
 
     return (
         <div
@@ -1632,7 +1631,10 @@ export const InfiniteCanvas = () => {
                                 })}
                             </div>
                             <button
-                                onClick={() => setContextBuffer([])}
+                                onClick={() => {
+                                    markLocalEdit();
+                                    setContextBuffer([]);
+                                }}
                                 className={clsx(
                                     "inline-flex h-8 shrink-0 items-center border px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700 hover:bg-red-50",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
@@ -1711,7 +1713,6 @@ export const InfiniteCanvas = () => {
                             </button>
                         </div>
 
-                            {/* eslint-disable-next-line react-hooks/refs */}
                             {dockActionButtons.map((button) => (
                                 <button
                                     key={button.key}
@@ -1728,19 +1729,6 @@ export const InfiniteCanvas = () => {
                     </div>
                 </div>
             </div>
-
-            {toast && (
-                <div
-                    data-ui-overlay
-                    className={clsx(
-                        "pointer-events-none fixed bottom-4 right-4 z-[2100] border px-3 py-2 text-[11px] font-semibold shadow-[0_8px_20px_rgba(33,36,41,0.15)]",
-                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
-                    )}
-                    style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}40` }}
-                >
-                    {toast.message}
-                </div>
-            )}
 
             {showSavePrompt && !isSignedIn && convexClient && (
                 <SavePrompt
@@ -1775,17 +1763,17 @@ export const InfiniteCanvas = () => {
 
             {showMinimap && (
                 <div className={clsx(
-                    "fixed right-4 z-[1000] hidden h-24 w-32 border p-1 md:block",
+                    "fixed right-4 z-[1000] hidden h-32 w-44 overflow-hidden border p-3 backdrop-blur-xl md:block",
                     minimapPositionClass,
                     isBeautifulUI
-                        ? (isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-70")
-                        : "opacity-100",
+                        ? (isMinimapHovered || isMinimapDragging ? "opacity-100" : "opacity-78")
+                        : "opacity-95",
                     isBeautifulUI
-                        ? "border-[#1b2b33]/30 shadow-[0_6px_16px_rgba(33,36,41,0.16)]"
+                        ? "border-white/30 shadow-[0_16px_40px_rgba(33,36,41,0.18)]"
                         : (isMinimapHovered || isMinimapDragging
-                            ? "border-[#776a54]/35 bg-[#eadfcb] shadow-none"
-                            : "border-transparent bg-transparent shadow-none"),
-                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius)]"
+                            ? "border-[#776a54]/35 bg-[#eadfcb]/90 shadow-none"
+                            : "border-transparent bg-[#eadfcb]/72 shadow-none"),
+                    sharpEdges ? "rounded-none" : "rounded-[28px]"
                 )}
                     data-ui-overlay
                     ref={minimapRef}
@@ -1795,18 +1783,34 @@ export const InfiniteCanvas = () => {
                     onPointerCancel={onMinimapPointerUp}
                     onPointerEnter={() => setIsMinimapHovered(true)}
                     onPointerLeave={() => setIsMinimapHovered(false)}
-                    style={{ backgroundColor: isBeautifulUI ? surfaceColor : undefined, touchAction: 'none' }}
+                    style={{
+                        backgroundColor: isBeautifulUI ? `${surfaceColor}cc` : undefined,
+                        touchAction: 'none',
+                    }}
                 >
+                    <div
+                        className={clsx(
+                            "pointer-events-none absolute inset-0",
+                            sharpEdges ? "rounded-none" : "rounded-[28px]"
+                        )}
+                        style={{
+                            background: isBeautifulUI
+                                ? `radial-gradient(circle at 32% 28%, rgba(255,255,255,0.42), transparent 38%), radial-gradient(circle at 70% 72%, ${accentColor}1f, transparent 45%)`
+                                : undefined,
+                        }}
+                    />
                     <div className="relative h-full w-full">
                         {minimapDots}
                         <div
-                            className={clsx("absolute border", sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-min)]")}
+                            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
                             style={{
-                                left: `${((-offset.x - WORLD_MIN_X) / WORLD_WIDTH) * 100}%`,
-                                top: `${((-offset.y - WORLD_MIN_Y) / WORLD_HEIGHT) * 100}%`,
-                                width: '10px',
-                                height: '8px',
-                                borderColor: accentColor
+                                left: `${(((-offset.x + window.innerWidth / 2) - WORLD_MIN_X) / WORLD_WIDTH) * 100}%`,
+                                top: `${(((-offset.y + window.innerHeight / 2) - WORLD_MIN_Y) / WORLD_HEIGHT) * 100}%`,
+                                width: '30px',
+                                height: '30px',
+                                background: `radial-gradient(circle, ${accentColor}40 0%, ${accentColor}24 45%, ${accentColor}10 70%, transparent 100%)`,
+                                filter: 'blur(2px)',
+                                boxShadow: `0 0 22px ${accentColor}30`,
                             }}
                         />
                     </div>

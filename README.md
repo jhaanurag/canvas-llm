@@ -1,26 +1,29 @@
-# Canvas LLM
+# RabbitHoleAI
 
-An infinite canvas-based LLM interface built with Next.js, Convex, and Clerk. Create, connect, and explore ideas through chat, notes, and drawings on a persistent digital workspace.
-<img width="1824" height="899" alt="image" src="https://github.com/user-attachments/assets/1819a614-0dd5-49f2-a4ee-c393f3f358ad" />
+RabbitHoleAI is an infinite-canvas LLM workspace built with Next.js and Convex. It lets you explore ideas spatially with chat, notes, and drawings while keeping model access behind a secure app proxy.
+
+<img width="1824" height="899" alt="RabbitHoleAI canvas screenshot" src="https://github.com/user-attachments/assets/1819a614-0dd5-49f2-a4ee-c393f3f358ad" />
 
 ## Features
 
-- **Infinite Canvas**: Organize your thoughts spatially without boundaries.
-- **Persistent State**: Your canvas is automatically saved to Convex and tied to your Clerk account.
+- **Infinite Canvas**: Organize conversations and notes spatially instead of forcing everything into one linear thread.
+- **Email/Password Auth**: Create an account or sign in directly in the app using the built-in Convex auth flow.
+- **Persistent State**: Save your canvas, node layout, and chat state to Convex.
 - **Multi-modal Nodes**:
-  - **Chat Nodes**: Interactive LLM conversations with context awareness.
-  - **Note Nodes**: Rich text areas for documentation and synthesis.
-  - **Drawing Nodes**: Visual expression directly on the canvas.
-- **Contextual Connections**: Link nodes together to pass context between them.
-- **Secure Architecture**: All LLM calls are proxied through a secure backend, protecting your API keys.
+  - **Chat Nodes** for interactive LLM conversations.
+  - **Note Nodes** for scratch work and synthesis.
+  - **Drawing Nodes** for diagrams and sketches.
+- **Context Management**: Branch chats, offload message memory, edit stored context, and spawn focused deep-dive chats from the main canvas.
+- **Responsive Agent Feedback**: Show in-chat processing feedback while the agent is thinking or syncing memory.
+- **Secure LLM Access**: Route model requests through `src/app/api/llm/route.ts` so provider keys stay server-side.
 
 ## Tech Stack
 
-- **Framework**: [Next.js 15](https://nextjs.org/) (App Router)
-- **Database**: [Convex](https://www.convex.dev/) (Real-time synchronization)
-- **Auth**: [Clerk](https://clerk.com/) (User management)
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
+- **Database / Sync**: [Convex](https://www.convex.dev/)
+- **Auth**: Custom email/password auth implemented in Convex
 - **LLM Proxy**: [LiteLLM](https://github.com/BerriAI/litellm)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) & [Shadcn UI](https://ui.shadcn.com/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) and app-specific canvas styling
 
 ## Getting Started
 
@@ -28,7 +31,6 @@ An infinite canvas-based LLM interface built with Next.js, Convex, and Clerk. Cr
 
 - Node.js 18+
 - A Convex account
-- A Clerk account
 - A LiteLLM proxy instance (local or remote)
 
 ### Environment Setup
@@ -36,13 +38,13 @@ An infinite canvas-based LLM interface built with Next.js, Convex, and Clerk. Cr
 Create a `.env.local` file in the root directory:
 
 ```bash
-# Clerk Auth
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_publishable_key
-CLERK_SECRET_KEY=your_secret_key
-
 # Convex Database
 CONVEX_DEPLOYMENT=your_deployment_id
 NEXT_PUBLIC_CONVEX_URL=your_convex_url
+
+# App Auth
+AUTH_JWT_SECRET=replace_with_a_long_random_secret
+AUTH_JWT_ISSUER=rabbitholeai
 
 # LLM Proxy Configuration
 LLM_LOCAL_PROXY_URL=http://127.0.0.1:4000
@@ -67,25 +69,24 @@ LLM_PROXY_KEY=your-shared-proxy-key
    ```bash
    npm run dev
    ```
-   This command runs both the Next.js development server and the Convex development window in parallel.
 
 ## Project Structure
 
-- `convex/`: Database schema and server-side mutations/queries.
-- `src/app/`: Next.js pages and API routes (including the `/api/llm` proxy).
-- `src/components/canvas/`: The core canvas logic and node components.
-- `src/lib/`: Shared utilities and LLM client logic.
-- `src/types/`: TypeScript definitions for the canvas state and nodes.
+- `convex/`: Convex schema, auth, and canvas persistence logic.
+- `src/app/`: Next.js routes, layouts, and the `/api/llm` proxy.
+- `src/components/canvas/`: Canvas UI, chat nodes, node controls, and orchestration behavior.
+- `src/lib/`: Shared LLM and utility helpers.
+- `src/types/`: Shared TypeScript definitions for canvas state and node data.
 
 ## LLM Proxy Architecture
 
-To ensure security and reliability, all LLM requests are routed through `src/app/api/llm/route.ts`. This route:
-1. Verifies the user session via Clerk.
-2. Implements a rate limiter to prevent abuse.
-3. Attempts to reach a local LiteLLM proxy first.
-4. Falls back to a remote proxy if the local one is unreachable.
+All model requests are routed through `src/app/api/llm/route.ts`. This route:
+
+1. Accepts authenticated and anonymous usage while keeping provider credentials server-side.
+2. Applies rate limiting.
+3. Tries a local LiteLLM proxy first for development.
+4. Falls back to a remote proxy when the local endpoint is unavailable.
 
 ## License
 
 MIT
-
