@@ -2,16 +2,11 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import type { FunctionReference } from 'convex/server';
-import { api } from '../../../convex/_generated/api';
 import { Node, Connection, Message, CanvasState, ContextItem, MemoryEntry } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
-import { AuthDialog } from '@/components/auth/AuthDialog';
-import { SavePrompt } from '@/components/auth/SavePrompt';
-import { getConvexBrowserClient } from '@/lib/convexBrowserClient';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
 import { Hand, Image as ImageIcon, Keyboard, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
@@ -22,7 +17,6 @@ const WORLD_MIN_Y = -5000;
 const WORLD_MAX_Y = 5000;
 const WORLD_WIDTH = WORLD_MAX_X - WORLD_MIN_X;
 const WORLD_HEIGHT = WORLD_MAX_Y - WORLD_MIN_Y;
-const AUTH_SESSION_KEY = 'canvas-auth-session';
 const UNSAVED_DRAFT_KEY = 'canvas-unsaved-state';
 
 function readStoredCanvasDraft(): CanvasState | null {
@@ -55,41 +49,34 @@ function hasCanvasContent(state: CanvasState | null) {
     );
 }
 
-type SessionUser = {
-    id: string;
-    username: string;
-    email: string;
-};
-
-type AuthSession = {
-    token: string;
-    user: SessionUser;
-};
-
-const publicApi = api as unknown as {
-    auth: {
-        getCurrentUser: FunctionReference<'action', 'public', Record<string, unknown>, SessionUser | null>;
-        register: FunctionReference<'action', 'public', Record<string, unknown>, AuthSession>;
-        login: FunctionReference<'action', 'public', Record<string, unknown>, AuthSession>;
+function sanitizeStateForStorage(state: CanvasState): CanvasState {
+    return {
+        nodes: state.nodes.map((node) => ({
+            ...node,
+            messages: node.messages.map((message) => ({
+                ...message,
+                attachments: undefined,
+            })),
+            initialAttachments: undefined,
+        })),
+        connections: state.connections,
+        contextBuffer: (state.contextBuffer ?? []).map(({ id, text, sourceNodeId }) => ({
+            id,
+            text,
+            sourceNodeId,
+        })),
     };
-    canvasStateActions: {
-        load: FunctionReference<'action', 'public', Record<string, unknown>, CanvasState | null>;
-        save: FunctionReference<'action', 'public', Record<string, unknown>, null>;
-    };
-};
+}
 
 export const InfiniteCanvas = () => {
-    const convexClient = useMemo(() => getConvexBrowserClient(), []);
-    const initialDraftRef = useRef<CanvasState | null>(readStoredCanvasDraft());
-    const draftIsHydratedRef = useRef(hasCanvasContent(initialDraftRef.current));
-    const hasPendingLocalEditsRef = useRef(false);
+    const [initialDraft] = useState<CanvasState | null>(() => readStoredCanvasDraft());
 
-    const [nodes, setNodes] = useState<Node[]>(() => initialDraftRef.current?.nodes ?? []);
-    const [connections, setConnections] = useState<Connection[]>(() => initialDraftRef.current?.connections ?? []);
+    const [nodes, setNodes] = useState<Node[]>(() => initialDraft?.nodes ?? []);
+    const [connections, setConnections] = useState<Connection[]>(() => initialDraft?.connections ?? []);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isPanning, setIsPanning] = useState(false);
     const [activeTool, setActiveTool] = useState('select');
-    const [contextBuffer, setContextBuffer] = useState<ContextItem[]>(() => initialDraftRef.current?.contextBuffer ?? []);
+    const [contextBuffer, setContextBuffer] = useState<ContextItem[]>(() => initialDraft?.contextBuffer ?? []);
     const [globalSelection, setGlobalSelection] = useState<{ text: string; x: number; y: number; nodeId: string } | null>(null);
     const [showCanvasSettings, setShowCanvasSettings] = useState(false);
     const [isBeautifulUI, setIsBeautifulUI] = useState(true);
@@ -102,16 +89,6 @@ export const InfiniteCanvas = () => {
     const [gridColor, setGridColor] = useState('#1b2b33');
     const [textColor, setTextColor] = useState('#1b2b33');
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
-    const [canvasStateLoaded, setCanvasStateLoaded] = useState(draftIsHydratedRef.current);
-    const [authLoaded, setAuthLoaded] = useState(false);
-    const [session, setSession] = useState<AuthSession | null>(null);
-    const [authDialogMode, setAuthDialogMode] = useState<'sign-in' | 'create-account' | null>(null);
-    const [authPending, setAuthPending] = useState(false);
-    const [authError, setAuthError] = useState<string | null>(null);
-    const [showSavePrompt, setShowSavePrompt] = useState(false);
-    const [savePromptDismissed, setSavePromptDismissed] = useState(false);
-    const [interactionScore, setInteractionScore] = useState(0);
-    const [firstInteractionAt, setFirstInteractionAt] = useState<number | null>(null);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
@@ -131,12 +108,12 @@ export const InfiniteCanvas = () => {
     const lastSelectionRef = useRef('');
     const isSpacePanningRef = useRef(false);
     const saveTimerRef = useRef<number | null>(null);
-    const lastSavedSnapshotRef = useRef('');
+    const lastSavedSnapshotRef = useRef(
+        initialDraft && hasCanvasContent(initialDraft)
+            ? JSON.stringify(sanitizeStateForStorage(initialDraft))
+            : ''
+    );
     const spawnIndexRef = useRef(0);
-    const hasPromptedToSaveRef = useRef(false);
-    const lastInteractionSnapshotRef = useRef('');
-
-    const isSignedIn = !!session;
 
     useEffect(() => {
         offsetRef.current = offset;
@@ -238,176 +215,24 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-animations-enabled', animationsEnabled ? 'on' : 'off');
     }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels, animationsEnabled]);
 
-    const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
-        nodes: state.nodes.map((node) => ({
-            ...node,
-            messages: node.messages.map((message) => ({
-                ...message,
-                attachments: undefined,
-            })),
-            initialAttachments: undefined,
-        })),
-        connections: state.connections,
-        contextBuffer: (state.contextBuffer ?? []).map(({ id, text, sourceNodeId }) => ({
-            id,
-            text,
-            sourceNodeId,
-        })),
-    }), []);
-
-    const persistSession = useCallback((nextSession: AuthSession | null) => {
-        setSession(nextSession);
-        if (nextSession) {
-            window.localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
-        } else {
-            window.localStorage.removeItem(AUTH_SESSION_KEY);
-        }
-    }, []);
-
-    const applyState = useCallback((nextState: CanvasState) => {
-        const sanitized = sanitizeStateForStorage(nextState);
-        setNodes(sanitized.nodes);
-        setConnections(sanitized.connections);
-        setContextBuffer(sanitized.contextBuffer ?? []);
-        lastSavedSnapshotRef.current = JSON.stringify(sanitized);
-    }, [sanitizeStateForStorage]);
-
-    const markLocalEdit = useCallback(() => {
-        hasPendingLocalEditsRef.current = true;
-    }, []);
-
-    const clearSession = useCallback(() => {
-        persistSession(null);
-        setAuthError(null);
-    }, [persistSession]);
-
-    useEffect(() => {
-        let cancelled = false;
-
-        const hydrateSession = async () => {
-            if (!convexClient) {
-                setAuthLoaded(true);
-                return;
-            }
-
-            const rawSession = window.localStorage.getItem(AUTH_SESSION_KEY);
-            if (!rawSession) {
-                setAuthLoaded(true);
-                return;
-            }
-
-            try {
-                const parsed = JSON.parse(rawSession) as AuthSession;
-                const user = await convexClient.action(publicApi.auth.getCurrentUser, { token: parsed.token });
-
-                if (!cancelled && user) {
-                    setSession({ token: parsed.token, user });
-                }
-                if (!cancelled && !user) {
-                    window.localStorage.removeItem(AUTH_SESSION_KEY);
-                }
-            } catch (error) {
-                console.error('Session restore failed:', error);
-                window.localStorage.removeItem(AUTH_SESSION_KEY);
-            } finally {
-                if (!cancelled) {
-                    setAuthLoaded(true);
-                }
-            }
-        };
-
-        hydrateSession();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [convexClient]);
-
-    useEffect(() => {
-        if (!authLoaded) return;
-
-        let cancelled = false;
-
-        const loadCanvasState = async () => {
-            if (!isSignedIn || !convexClient || !session) {
-                setCanvasStateLoaded(true);
-                return;
-            }
-
-            if (draftIsHydratedRef.current) {
-                setCanvasStateLoaded(true);
-                return;
-            }
-
-            try {
-                const remoteCanvasState = await convexClient.action(publicApi.canvasStateActions.load, {
-                    token: session.token,
-                });
-
-                if (!cancelled) {
-                    if (remoteCanvasState && !hasPendingLocalEditsRef.current) {
-                        applyState(remoteCanvasState as CanvasState);
-                    }
-                    setCanvasStateLoaded(true);
-                }
-            } catch (error) {
-                console.error('Canvas state load failed:', error);
-                if (!cancelled) {
-                    setCanvasStateLoaded(true);
-                }
-
-                if (error instanceof Error && error.message.includes('sign in again')) {
-                    clearSession();
-                }
-            }
-        };
-
-        loadCanvasState();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [applyState, authLoaded, clearSession, convexClient, isSignedIn, session]);
+    const markLocalEdit = useCallback(() => {}, []);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
         nodes,
         connections,
         contextBuffer,
-    }), [nodes, connections, contextBuffer, sanitizeStateForStorage]);
-    const persistedContextBuffer = useMemo(
-        () => persistedCanvasState.contextBuffer ?? [],
-        [persistedCanvasState.contextBuffer],
-    );
+    }), [nodes, connections, contextBuffer]);
 
     useEffect(() => {
-        if (!authLoaded || !canvasStateLoaded) return;
         if (saveTimerRef.current !== null) {
             clearTimeout(saveTimerRef.current);
         }
         const snapshot = JSON.stringify(persistedCanvasState);
         if (snapshot === lastSavedSnapshotRef.current) return;
 
-        saveTimerRef.current = window.setTimeout(async () => {
+        saveTimerRef.current = window.setTimeout(() => {
             window.localStorage.setItem(UNSAVED_DRAFT_KEY, snapshot);
-            if (!isSignedIn || !convexClient || !session) {
-                return;
-            }
-
-            try {
-                await convexClient.action(publicApi.canvasStateActions.save, {
-                    token: session.token,
-                    nodes: persistedCanvasState.nodes,
-                    connections: persistedCanvasState.connections,
-                    contextBuffer: persistedContextBuffer,
-                });
-                lastSavedSnapshotRef.current = snapshot;
-                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
-            } catch (error) {
-                console.error('Canvas state save failed:', error);
-                if (error instanceof Error && error.message.includes('sign in again')) {
-                    clearSession();
-                }
-            }
+            lastSavedSnapshotRef.current = snapshot;
         }, 700);
 
         return () => {
@@ -415,129 +240,7 @@ export const InfiniteCanvas = () => {
                 clearTimeout(saveTimerRef.current);
             }
         };
-    }, [authLoaded, canvasStateLoaded, clearSession, convexClient, isSignedIn, persistedCanvasState, persistedContextBuffer, session]);
-
-    useEffect(() => {
-        if (!authLoaded || !canvasStateLoaded || isSignedIn || savePromptDismissed) return;
-
-        const hasCanvasActivity =
-            persistedCanvasState.nodes.length > 0 ||
-            persistedCanvasState.connections.length > 0 ||
-            persistedContextBuffer.length > 0;
-
-        if (!hasCanvasActivity) {
-            return;
-        }
-
-        const snapshot = JSON.stringify(persistedCanvasState);
-        if (!firstInteractionAt) {
-            setFirstInteractionAt(Date.now());
-        }
-        if (snapshot !== lastInteractionSnapshotRef.current) {
-            lastInteractionSnapshotRef.current = snapshot;
-            setInteractionScore((prev) => prev + 1);
-        }
-    }, [authLoaded, canvasStateLoaded, firstInteractionAt, isSignedIn, persistedCanvasState, persistedContextBuffer.length, savePromptDismissed]);
-
-    useEffect(() => {
-        if (!authLoaded || isSignedIn || savePromptDismissed || hasPromptedToSaveRef.current) return;
-        if (!firstInteractionAt) return;
-
-        const elapsed = Date.now() - firstInteractionAt;
-        const shouldPrompt = interactionScore >= 4 || elapsed >= 20_000;
-
-        if (shouldPrompt) {
-            hasPromptedToSaveRef.current = true;
-            setShowSavePrompt(true);
-            return;
-        }
-
-        const remaining = 20_000 - elapsed;
-        const timer = window.setTimeout(() => {
-            if (hasPromptedToSaveRef.current) return;
-            hasPromptedToSaveRef.current = true;
-            setShowSavePrompt(true);
-        }, Math.max(remaining, 1000));
-
-        return () => window.clearTimeout(timer);
-    }, [authLoaded, firstInteractionAt, interactionScore, isSignedIn, savePromptDismissed]);
-
-    const hasMeaningfulLocalCanvas = persistedCanvasState.nodes.length > 0 || persistedCanvasState.connections.length > 0 || persistedContextBuffer.length > 0;
-
-    const finishAuth = useCallback(async (nextSession: AuthSession) => {
-        persistSession(nextSession);
-        setAuthDialogMode(null);
-        setAuthError(null);
-        setShowSavePrompt(false);
-
-        if (!convexClient) {
-            return;
-        }
-
-        try {
-            if (hasMeaningfulLocalCanvas) {
-                await convexClient.action(publicApi.canvasStateActions.save, {
-                    token: nextSession.token,
-                    nodes: persistedCanvasState.nodes,
-                    connections: persistedCanvasState.connections,
-                    contextBuffer: persistedContextBuffer,
-                });
-                lastSavedSnapshotRef.current = JSON.stringify(persistedCanvasState);
-                window.localStorage.removeItem(UNSAVED_DRAFT_KEY);
-            } else {
-                const remoteCanvasState = await convexClient.action(publicApi.canvasStateActions.load, {
-                    token: nextSession.token,
-                });
-                if (remoteCanvasState) {
-                    applyState(remoteCanvasState as CanvasState);
-                }
-            }
-        } catch (error) {
-            console.error('Post-auth canvas sync failed:', error);
-        } finally {
-            setCanvasStateLoaded(true);
-        }
-    }, [applyState, convexClient, hasMeaningfulLocalCanvas, persistSession, persistedCanvasState, persistedContextBuffer]);
-
-    const handleAuthSubmit = useCallback(async ({
-        mode,
-        username,
-        email,
-        identifier,
-        password,
-    }: {
-        mode: 'sign-in' | 'create-account';
-        username: string;
-        email: string;
-        identifier: string;
-        password: string;
-    }) => {
-        if (!convexClient) {
-            setAuthError('Convex is not configured in this environment, so cloud save is unavailable.');
-            return;
-        }
-
-        setAuthPending(true);
-        setAuthError(null);
-
-        try {
-            const result = mode === 'create-account'
-                ? await convexClient.action(publicApi.auth.register, { username, email, password })
-                : await convexClient.action(publicApi.auth.login, { identifier, password });
-
-            await finishAuth(result);
-        } catch (error) {
-            setAuthError(error instanceof Error ? error.message : 'Authentication failed.');
-        } finally {
-            setAuthPending(false);
-        }
-    }, [convexClient, finishAuth]);
-
-    const handleSignOut = useCallback(() => {
-        clearSession();
-        setShowSavePrompt(false);
-        setAuthDialogMode(null);
-    }, [clearSession]);
+    }, [persistedCanvasState]);
 
     // Global selection listener for better reliability
     useEffect(() => {
@@ -1004,7 +707,6 @@ export const InfiniteCanvas = () => {
     }, [addNode, connections, contextBuffer, markLocalEdit, nodes, worldToScreen]);
 
     useEffect(() => {
-        if (!canvasStateLoaded) return;
         if (nodes.length === 0) {
             const timer = window.setTimeout(() => {
                 const point = getNextSpawnScreenPoint('chat');
@@ -1012,7 +714,7 @@ export const InfiniteCanvas = () => {
             }, 0);
             return () => window.clearTimeout(timer);
         }
-    }, [addNode, canvasStateLoaded, getNextSpawnScreenPoint, nodes.length]);
+    }, [addNode, getNextSpawnScreenPoint, nodes.length]);
 
     useEffect(() => {
         const isTextEntryTarget = (target: EventTarget | null) =>
@@ -1175,6 +877,7 @@ export const InfiniteCanvas = () => {
     ), [
         accentColor,
         addToContext,
+        animationsEnabled,
         branchFromChatMessage,
         spawnChatsFromNode,
         bringToFront,
@@ -1216,80 +919,6 @@ export const InfiniteCanvas = () => {
         '--canvas-radius-xs': `${sharpEdges ? 0 : Math.max(0, cornerRadius - 10)}px`,
         '--canvas-radius-min': `${sharpEdges ? 0 : Math.max(0, Math.min(4, cornerRadius - 12))}px`
     } as React.CSSProperties;
-    const dockActionButtons = useMemo(() => ([
-        {
-            key: 'new-chat',
-            className: dockButtonClass,
-            title: 'New Chat (1)',
-            icon: <MessageSquare size={13} />,
-            label: 'New Chat',
-            onClick: () => {
-                const point = getNextSpawnScreenPoint('chat');
-                const newNode = addNode('chat', point.x, point.y);
-                if (contextBuffer.length > 0) {
-                    const contextText = contextBuffer.map(i => i.text).join('\n\n');
-                    const images = contextBuffer
-                        .filter(i => i.image)
-                        .map(i => ({
-                            data: i.image!,
-                            mimeType: 'image/png',
-                            name: 'drawing.png'
-                        }));
-
-                    setTimeout(() => {
-                        markLocalEdit();
-                        setNodes(prev => prev.map(n => n.id === newNode.id ? {
-                            ...n,
-                            initialPrompt: `\n\nContext:\n${contextText}`,
-                            hasInitialContext: true,
-                            initialAttachments: images
-                        } : n));
-                        setContextBuffer([]);
-                    }, 100);
-                }
-            },
-        },
-        {
-            key: 'new-note',
-            className: dockButtonClass,
-            title: 'New Note (2)',
-            icon: <StickyNote size={13} />,
-            label: 'New Note',
-            onClick: () => {
-                const point = getNextSpawnScreenPoint('note');
-                addNode('note', point.x, point.y);
-            },
-        },
-        {
-            key: 'new-drawing',
-            className: dockButtonClass,
-            title: 'New Drawing (3)',
-            icon: <Pencil size={13} />,
-            label: 'New Drawing',
-            onClick: () => {
-                const point = getNextSpawnScreenPoint('drawing');
-                addNode('drawing', point.x, point.y);
-            },
-        },
-        {
-            key: 'settings',
-            className: dockSettingsButtonClass,
-            title: 'Canvas settings',
-            icon: <Settings2 size={13} />,
-            label: 'Settings',
-            onClick: () => setShowCanvasSettings((prev) => !prev),
-        },
-        {
-            key: 'shortcuts',
-            className: dockButtonClass,
-            title: 'Help & Shortcuts',
-            icon: <Keyboard size={13} />,
-            label: 'Shortcuts',
-            onClick: () => {
-                alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
-            },
-        },
-    ]), [addNode, contextBuffer, dockButtonClass, dockSettingsButtonClass, getNextSpawnScreenPoint, markLocalEdit]);
 
     return (
         <div
@@ -1329,35 +958,7 @@ export const InfiniteCanvas = () => {
                     )}
                     style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}35` }}
                 >
-                    {isSignedIn && session ? (
-                        <>
-                            <span className="max-w-[10rem] truncate">@{session.user.username}</span>
-                            <button
-                                type="button"
-                                onClick={handleSignOut}
-                                className="rounded-full border border-[#1b2b33]/12 px-3 py-1 text-[10px] uppercase tracking-[0.12em] transition hover:border-[color:var(--canvas-accent-70)]"
-                            >
-                                Sign out
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <span>{convexClient ? 'Sign in to save' : 'Local-only mode'}</span>
-                            {convexClient && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setAuthError(null);
-                                        setAuthDialogMode('sign-in');
-                                    }}
-                                    className="rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.12em]"
-                                    style={{ backgroundColor: accentColor, color: accentTextColor }}
-                                >
-                                    Sign in
-                                </button>
-                            )}
-                        </>
-                    )}
+                    <span>Local-only canvas on this browser/device</span>
                 </div>
             </div>
 
@@ -1769,53 +1370,87 @@ export const InfiniteCanvas = () => {
                             </button>
                         </div>
 
-                            {dockActionButtons.map((button) => (
-                                <button
-                                    key={button.key}
-                                    className={button.className}
-                                    onClick={button.onClick}
-                                    title={button.title}
-                                    style={{ color: textColor }}
-                                >
-                                    {button.icon}
-                                    {showButtonLabels && <span>{button.label}</span>}
-                                </button>
-                            ))}
+                            <button
+                                className={dockButtonClass}
+                                onClick={() => {
+                                    const point = getNextSpawnScreenPoint('chat');
+                                    const newNode = addNode('chat', point.x, point.y);
+                                    if (contextBuffer.length > 0) {
+                                        const contextText = contextBuffer.map((item) => item.text).join('\n\n');
+                                        const images = contextBuffer
+                                            .filter((item) => item.image)
+                                            .map((item) => ({
+                                                data: item.image!,
+                                                mimeType: 'image/png',
+                                                name: 'drawing.png'
+                                            }));
+
+                                        setTimeout(() => {
+                                            markLocalEdit();
+                                            setNodes((prev) => prev.map((node) => node.id === newNode.id ? {
+                                                ...node,
+                                                initialPrompt: `\n\nContext:\n${contextText}`,
+                                                hasInitialContext: true,
+                                                initialAttachments: images
+                                            } : node));
+                                            setContextBuffer([]);
+                                        }, 100);
+                                    }
+                                }}
+                                title="New Chat (1)"
+                                style={{ color: textColor }}
+                            >
+                                <MessageSquare size={13} />
+                                {showButtonLabels && <span>New Chat</span>}
+                            </button>
+                            <button
+                                className={dockButtonClass}
+                                onClick={() => {
+                                    const point = getNextSpawnScreenPoint('note');
+                                    addNode('note', point.x, point.y);
+                                }}
+                                title="New Note (2)"
+                                style={{ color: textColor }}
+                            >
+                                <StickyNote size={13} />
+                                {showButtonLabels && <span>New Note</span>}
+                            </button>
+                            <button
+                                className={dockButtonClass}
+                                onClick={() => {
+                                    const point = getNextSpawnScreenPoint('drawing');
+                                    addNode('drawing', point.x, point.y);
+                                }}
+                                title="New Drawing (3)"
+                                style={{ color: textColor }}
+                            >
+                                <Pencil size={13} />
+                                {showButtonLabels && <span>New Drawing</span>}
+                            </button>
+                            <button
+                                className={dockSettingsButtonClass}
+                                onClick={() => setShowCanvasSettings((prev) => !prev)}
+                                title="Canvas settings"
+                                style={{ color: textColor }}
+                            >
+                                <Settings2 size={13} />
+                                {showButtonLabels && <span>Settings</span>}
+                            </button>
+                            <button
+                                className={dockButtonClass}
+                                onClick={() => {
+                                    alert('Shortcuts:\n1 = New Chat\n2 = New Note\n3 = New Drawing\nHold Space + Drag = Pan');
+                                }}
+                                title="Help & Shortcuts"
+                                style={{ color: textColor }}
+                            >
+                                <Keyboard size={13} />
+                                {showButtonLabels && <span>Shortcuts</span>}
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-
-            {showSavePrompt && !isSignedIn && convexClient && (
-                <SavePrompt
-                    onDismiss={() => {
-                        setShowSavePrompt(false);
-                        setSavePromptDismissed(true);
-                    }}
-                    onOpenAuth={() => {
-                        setShowSavePrompt(false);
-                        setAuthError(null);
-                        setAuthDialogMode('create-account');
-                    }}
-                />
-            )}
-
-            {authDialogMode && (
-                <AuthDialog
-                    mode={authDialogMode}
-                    busy={authPending}
-                    error={authError}
-                    onClose={() => {
-                        setAuthDialogMode(null);
-                        setAuthError(null);
-                    }}
-                    onModeChange={(mode) => {
-                        setAuthDialogMode(mode);
-                        setAuthError(null);
-                    }}
-                    onSubmit={handleAuthSubmit}
-                />
-            )}
 
             {showMinimap && (
                 <div className={clsx(
