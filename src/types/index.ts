@@ -4,8 +4,17 @@ export type Message = {
     role: 'user' | 'model';
     text: string;
     sourceText?: string;
+    kind?: 'default' | 'compressed' | 'memory-request' | 'memory-response';
+    hiddenFromModel?: boolean;
     timestamp: number;
     attachments?: { data: string; mimeType: string; name: string }[];
+};
+
+export type MemoryEntry = {
+    id: string;
+    text: string;
+    sourceText?: string;
+    createdAt: number;
 };
 
 export type Node = {
@@ -26,6 +35,8 @@ export type Node = {
     autoSend?: boolean;
     hasInitialContext?: boolean;
     initialAttachments?: { data: string; mimeType: string; name: string }[];
+    memoryEntries?: MemoryEntry[];
+    createdAt?: number;
 };
 
 export type Connection = {

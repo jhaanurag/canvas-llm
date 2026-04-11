@@ -219,4 +219,54 @@
     background: rgba(27, 43, 51, 0.38);
     border-radius: 999px;
   }
+
+  .memory-status-shell {
+    background: rgba(255, 253, 247, 0.96);
+  }
+
+  .memory-status-gradient {
+    background:
+      linear-gradient(120deg, rgba(247, 178, 103, 0.08), rgba(15, 118, 110, 0.08), rgba(103, 126, 234, 0.08), rgba(246, 122, 168, 0.08));
+    animation: memory-gradient-drift 6s linear infinite;
+  }
+
+  .memory-status-text {
+    background-image: linear-gradient(120deg, #d97706, #0f766e, #4f46e5, #db2777);
+    background-size: 220% 100%;
+    background-position: 0% 50%;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: memory-text-flow 3s linear infinite, memory-text-pulse 1.4s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes memory-gradient-drift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes memory-text-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 220% 50%;
+  }
+}
+
+@keyframes memory-text-pulse {
+  0% {
+    opacity: 0.58;
+  }
+
+  100% {
+    opacity: 1;
+  }
 }

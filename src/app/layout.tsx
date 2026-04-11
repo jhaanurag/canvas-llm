@@ -14,7 +14,7 @@ const brandMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Canvas Atlas",
+  title: "RabbitHoleAI",
   description: "A visual workspace for branching AI thinking.",
 };
 

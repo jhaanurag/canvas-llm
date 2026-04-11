@@ -25,7 +25,7 @@ export async function* streamGeminiResponse(
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
         ...history.map((entry): ChatMessage => ({
-            role: entry.role === 'model' ? 'assistant' : 'user',
+            role: entry.role === 'user' ? 'user' : 'assistant',
             content: entry.text
         }))
     ];

@@ -1,28 +1,30 @@
 # RabbitHoleAI
 
-RabbitHoleAI is an infinite-canvas LLM workspace built with Next.js and Convex. It lets you explore ideas spatially with chat, notes, and drawings while keeping model access behind a secure app proxy.
+RabbitHoleAI is an infinite-canvas AI workspace built with Next.js and Convex. It lets you think spatially with chat, notes, and drawings, branch conversations into new windows, and keep long-running threads organized on a persistent canvas.
 
 <img width="1824" height="899" alt="RabbitHoleAI canvas screenshot" src="https://github.com/user-attachments/assets/1819a614-0dd5-49f2-a4ee-c393f3f358ad" />
 
 ## Features
 
-- **Infinite Canvas**: Organize conversations and notes spatially instead of forcing everything into one linear thread.
-- **Email/Password Auth**: Create an account or sign in directly in the app using the built-in Convex auth flow.
-- **Persistent State**: Save your canvas, node layout, and chat state to Convex.
+- **Infinite Canvas**: Lay out chats, notes, and drawings in a spatial workspace instead of a linear thread.
+- **Chat Nodes**: Run LLM conversations in movable windows with editable titles, per-chat system prompts, attachments, and branching.
+- **Context Management**: Add chat content to shared context, compress messages, edit raw context, and offload memory into a dedicated per-chat memory panel.
+- **Deep-Dive Chat Spawning**: The main agent can open new chat windows with prefilled prompts for deeper parallel exploration.
+- **Visual Feedback**: Animated agent-status bubbles and optional window entrance animations make async AI actions easier to follow.
 - **Multi-modal Nodes**:
-  - **Chat Nodes** for interactive LLM conversations.
-  - **Note Nodes** for scratch work and synthesis.
-  - **Drawing Nodes** for diagrams and sketches.
-- **Context Management**: Branch chats, offload message memory, edit stored context, and spawn focused deep-dive chats from the main canvas.
-- **Responsive Agent Feedback**: Show in-chat processing feedback while the agent is thinking or syncing memory.
-- **Secure LLM Access**: Route model requests through `src/app/api/llm/route.ts` so provider keys stay server-side.
+  - **Chat Nodes** for conversations and branching research flows.
+  - **Note Nodes** for synthesis and documentation.
+  - **Drawing Nodes** for sketches and visual context.
+- **Email/Password Auth**: Create an account or sign in directly in the app using the built-in Convex auth flow.
+- **Persistent State**: Your canvas is saved locally and to Convex when signed in.
+- **Secure Architecture**: All LLM calls are proxied through the app backend so model credentials stay server-side.
 
 ## Tech Stack
 
 - **Framework**: [Next.js 16](https://nextjs.org/) (App Router)
 - **Database / Sync**: [Convex](https://www.convex.dev/)
 - **Auth**: Custom email/password auth implemented in Convex
-- **LLM Proxy**: [LiteLLM](https://github.com/BerriAI/litellm)
+- **LLM Proxy**: App-level proxy route with local/remote fallback
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/) and app-specific canvas styling
 
 ## Getting Started
@@ -73,19 +75,20 @@ LLM_PROXY_KEY=your-shared-proxy-key
 ## Project Structure
 
 - `convex/`: Convex schema, auth, and canvas persistence logic.
-- `src/app/`: Next.js routes, layouts, and the `/api/llm` proxy.
-- `src/components/canvas/`: Canvas UI, chat nodes, node controls, and orchestration behavior.
+- `src/app/`: Next.js routes, global styles, and the `/api/llm` proxy.
+- `src/components/canvas/`: Infinite canvas UI, chat nodes, notes, drawings, and orchestration behavior.
 - `src/lib/`: Shared LLM and utility helpers.
-- `src/types/`: Shared TypeScript definitions for canvas state and node data.
+- `src/types/`: TypeScript definitions for canvas state, nodes, messages, and memory entries.
 
 ## LLM Proxy Architecture
 
 All model requests are routed through `src/app/api/llm/route.ts`. This route:
 
-1. Accepts authenticated and anonymous usage while keeping provider credentials server-side.
-2. Applies rate limiting.
-3. Tries a local LiteLLM proxy first for development.
-4. Falls back to a remote proxy when the local endpoint is unavailable.
+1. Keeps model credentials server-side.
+2. Supports both authenticated and anonymous app usage.
+3. Applies rate limiting.
+4. Tries the local proxy first.
+5. Falls back to a remote proxy if the local endpoint is unavailable.
 
 ## License
 

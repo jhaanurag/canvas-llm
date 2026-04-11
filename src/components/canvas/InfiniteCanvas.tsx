@@ -4,7 +4,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { FunctionReference } from 'convex/server';
 import { api } from '../../../convex/_generated/api';
-import { Node, Connection, Message, CanvasState, ContextItem } from '@/types';
+import { Node, Connection, Message, CanvasState, ContextItem, MemoryEntry } from '@/types';
 import { ChatNode } from './ChatNode';
 import { NoteNode } from './NoteNode';
 import { DrawingNode } from './DrawingNode';
@@ -116,6 +116,7 @@ export const InfiniteCanvas = () => {
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
     const [showMinimap, setShowMinimap] = useState(true);
     const [showButtonLabels, setShowButtonLabels] = useState(true);
+    const [animationsEnabled, setAnimationsEnabled] = useState(true);
     const [isMinimapHovered, setIsMinimapHovered] = useState(false);
     const [isMinimapDragging, setIsMinimapDragging] = useState(false);
     const canvasRef = useRef<HTMLDivElement>(null);
@@ -198,6 +199,8 @@ export const InfiniteCanvas = () => {
         const nextShowMinimap = storedShowMinimap === 'off' ? false : true;
         const storedShowButtonLabels = window.localStorage.getItem('canvas-show-button-labels');
         const nextShowButtonLabels = storedShowButtonLabels === 'off' ? false : true;
+        const storedAnimationsEnabled = window.localStorage.getItem('canvas-animations-enabled');
+        const nextAnimationsEnabled = storedAnimationsEnabled === 'off' ? false : true;
 
         const raf = requestAnimationFrame(() => {
             setIsBeautifulUI(nextIsBeautifulUI);
@@ -212,6 +215,7 @@ export const InfiniteCanvas = () => {
             setDockPosition(nextDockPosition);
             setShowMinimap(nextShowMinimap);
             setShowButtonLabels(nextShowButtonLabels);
+            setAnimationsEnabled(nextAnimationsEnabled);
             setPreferencesLoaded(true);
         });
         return () => cancelAnimationFrame(raf);
@@ -231,7 +235,8 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-dock-position', dockPosition);
         window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
         window.localStorage.setItem('canvas-show-button-labels', showButtonLabels ? 'on' : 'off');
-    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels]);
+        window.localStorage.setItem('canvas-animations-enabled', animationsEnabled ? 'on' : 'off');
+    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels, animationsEnabled]);
 
     const sanitizeStateForStorage = useCallback((state: CanvasState): CanvasState => ({
         nodes: state.nodes.map((node) => ({
@@ -805,6 +810,8 @@ export const InfiniteCanvas = () => {
             parentId,
             sourceSelection,
             color: type === 'chat' ? `#${Math.floor(Math.random() * 16777215).toString(16)}` : undefined,
+            memoryEntries: type === 'chat' ? [] : undefined,
+            createdAt: Date.now(),
         };
         setNodes((prev) => [...prev, newNode]);
         if (parentId) {
@@ -847,6 +854,11 @@ export const InfiniteCanvas = () => {
     const updateNodeMessages = useCallback((id: string, messages: Message[]) => {
         markLocalEdit();
         setNodes((prev) => prev.map(n => n.id === id ? { ...n, messages } : n));
+    }, [markLocalEdit]);
+
+    const updateNodeMemoryEntries = useCallback((id: string, memoryEntries: MemoryEntry[]) => {
+        markLocalEdit();
+        setNodes((prev) => prev.map(n => n.id === id ? { ...n, memoryEntries } : n));
     }, [markLocalEdit]);
 
     const updateNodeContent = useCallback((id: string, content: string) => {
@@ -907,6 +919,28 @@ export const InfiniteCanvas = () => {
         }, 100);
 
     }, [addNode, connections, markLocalEdit, nodes, worldToScreen]);
+
+    const spawnChatsFromNode = useCallback((nodeId: string, specs: { title?: string; prompt: string }[]) => {
+        const sourceNode = nodes.find((entry) => entry.id === nodeId);
+        const baseX = sourceNode ? sourceNode.x + sourceNode.width + 120 : 0;
+        const baseY = sourceNode ? sourceNode.y - 40 : 0;
+
+        specs
+            .filter((spec) => spec.prompt.trim())
+            .forEach((spec, index) => {
+                const screenPoint = worldToScreen(baseX + (index % 2) * 440, baseY + Math.floor(index / 2) * 560);
+                const spawnedNode = addNode('chat', screenPoint.x, screenPoint.y, sourceNode?.id);
+                window.setTimeout(() => {
+                    markLocalEdit();
+                    setNodes((prev) => prev.map((entry) => entry.id === spawnedNode.id ? {
+                        ...entry,
+                        title: spec.title?.trim() || entry.title,
+                        initialPrompt: spec.prompt.trim(),
+                        autoSend: true,
+                    } : entry));
+                }, 40);
+            });
+    }, [addNode, markLocalEdit, nodes, worldToScreen]);
 
     const removeFromContext = useCallback((id: string) => {
         markLocalEdit();
@@ -1090,12 +1124,15 @@ export const InfiniteCanvas = () => {
                         updateMessages={(msgs) => updateNodeMessages(node.id, msgs)}
                         updateTitle={(title) => updateNodeTitle(node.id, title)}
                         updateSystemPrompt={(prompt) => updateNodeSystemPrompt(node.id, prompt)}
+                        updateMemoryEntries={(entries) => updateNodeMemoryEntries(node.id, entries)}
                         onDelete={() => deleteNode(node.id)}
                         isBeautifulUI={isBeautifulUI}
                         sharpEdges={sharpEdges}
                         accentColor={accentColor}
+                        animationsEnabled={animationsEnabled}
                         onAddToContext={(text) => addToContext(text, node.id)}
                         onBranchFromMessage={(messageIndex) => branchFromChatMessage(node.id, messageIndex)}
+                        onSpawnChats={(specs) => spawnChatsFromNode(node.id, specs)}
                         setGlobalSelection={(sel) => setGlobalSelection(sel ? { ...sel, nodeId: node.id } : null)}
                         onMouseDown={() => bringToFront(node.id)}
                     />
@@ -1139,6 +1176,7 @@ export const InfiniteCanvas = () => {
         accentColor,
         addToContext,
         branchFromChatMessage,
+        spawnChatsFromNode,
         bringToFront,
         deleteNode,
         nodes,
@@ -1146,6 +1184,7 @@ export const InfiniteCanvas = () => {
         sharpEdges,
         setGlobalSelection,
         updateNodeContent,
+        updateNodeMemoryEntries,
         updateNodeSystemPrompt,
         updateNodeTitle,
         updateNodeMessages,
@@ -1504,6 +1543,23 @@ export const InfiniteCanvas = () => {
                         </div>
                         <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
+                                <div className="text-[12px] font-semibold">Animations</div>
+                                <div className="text-[10px] opacity-70">Controls chat entrance motion and AI activity effects.</div>
+                            </div>
+                            <button
+                                className={clsx(
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                                )}
+                                onClick={() => setAnimationsEnabled((prev) => !prev)}
+                                title="Toggle animations"
+                                style={{ color: textColor }}
+                            >
+                                {animationsEnabled ? 'On' : 'Off'}
+                            </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Colour</div>
                                 <div className="text-[10px] opacity-70">Accent, surface, grid, and text colors.</div>
                             </div>
@@ -1669,7 +1725,7 @@ export const InfiniteCanvas = () => {
                                     "border-[#21404a]/35 bg-[#fff8ed]"
                                 )} style={{ color: textColor }}>
                                     <MapIcon size={13} />
-                                    Canvas Atlas
+                                    RabbitHoleAI
                                 </div>
                             )}
                             <div className={clsx(
