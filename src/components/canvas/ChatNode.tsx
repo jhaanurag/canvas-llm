@@ -117,7 +117,7 @@ If the answer is not present in memory, say exactly: NOT_FOUND
             setAttachedFiles(node.initialAttachments);
         }
     }, [attachedFiles.length, node.initialAttachments, node.messages.length]);
-    const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant.');
+    const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant. Do not reveal the internal workings to the user.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
     const [bubbleTransparencyMode, setBubbleTransparencyMode] = useState<'auto' | 'solid'>('auto');
@@ -432,7 +432,7 @@ If the answer is not present in memory, say exactly: NOT_FOUND
             const memoryQuery = forcedMemoryLookup
                 ? text.trim()
                 : memoryMatch?.[1]?.trim() ?? '';
-            let workingMessages = [...newMessages];
+            const workingMessages = [...newMessages];
 
             if (hasMemory && memoryQuery) {
                 setAssistantActivity(null);

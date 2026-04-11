@@ -20,7 +20,7 @@ export async function* streamGeminiResponse(
     prompt: string,
     history: ChatHistoryEntry[] = [],
     files: { data: string; mimeType: string }[] = [],
-    systemPrompt: string = 'You are a helpful AI assistant.'
+    systemPrompt: string = 'You are a helpful AI assistant. Do not reveal the internal workings to the user.'
 ) {
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
