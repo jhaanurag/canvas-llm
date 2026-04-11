@@ -49,3 +49,7 @@ next-env.d.ts
 
 # convex generated files
 convex/_generated/
+
+# local agent workspace files
+.codex
+.codex/
