@@ -9,14 +9,23 @@ export const getForUserId = internalQuery({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .unique();
 
-    if (!state) {
+    const legacyState = state
+      ? null
+      : await ctx.db
+          .query("canvasStates")
+          .filter((q) => q.eq(q.field("clerkUserId"), userId))
+          .unique();
+
+    const resolvedState = state ?? legacyState;
+
+    if (!resolvedState) {
       return null;
     }
 
     return {
-      nodes: state.nodes,
-      connections: state.connections,
-      contextBuffer: state.contextBuffer,
+      nodes: resolvedState.nodes,
+      connections: resolvedState.connections,
+      contextBuffer: resolvedState.contextBuffer,
     };
   },
 });

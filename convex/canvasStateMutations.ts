@@ -65,8 +65,19 @@ export const saveForUserId = internalMutation({
       .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
       .unique();
 
-    if (existing) {
-      await ctx.db.patch(existing._id, {
+    const legacyExisting = existing
+      ? null
+      : await ctx.db
+          .query("canvasStates")
+          .filter((q) => q.eq(q.field("clerkUserId"), args.userId))
+          .unique();
+
+    const resolvedExisting = existing ?? legacyExisting;
+
+    if (resolvedExisting) {
+      await ctx.db.patch(resolvedExisting._id, {
+        userId: args.userId,
+        clerkUserId: undefined,
         nodes,
         connections,
         contextBuffer,

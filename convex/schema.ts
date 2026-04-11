@@ -58,7 +58,8 @@ export default defineSchema({
     .index("by_username_lower", ["usernameLower"])
     .index("by_email_lower", ["emailLower"]),
   canvasStates: defineTable({
-    userId: v.string(),
+    userId: v.optional(v.string()),
+    clerkUserId: v.optional(v.string()),
     nodes: v.array(nodeValidator),
     connections: v.array(connectionValidator),
     contextBuffer: v.array(contextItemValidator),
