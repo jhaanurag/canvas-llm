@@ -19,6 +19,33 @@ const WORLD_WIDTH = WORLD_MAX_X - WORLD_MIN_X;
 const WORLD_HEIGHT = WORLD_MAX_Y - WORLD_MIN_Y;
 const UNSAVED_DRAFT_KEY = 'canvas-unsaved-state';
 
+/**
+ * Centers the viewport on the last-touched node (nodes are kept in
+ * z-order via bringToFront, so the last array entry is the most
+ * recently active one) instead of defaulting to the world origin.
+ */
+function computeInitialOffset(nodes: Node[]): { x: number; y: number } {
+    if (typeof window === 'undefined' || nodes.length === 0) {
+        return { x: 0, y: 0 };
+    }
+
+    const lastNode = nodes[nodes.length - 1];
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const targetX = viewportWidth / 2 - (lastNode.x + lastNode.width / 2);
+    const targetY = viewportHeight / 2 - (lastNode.y + lastNode.height / 2);
+
+    const minOffsetX = viewportWidth - WORLD_MAX_X;
+    const maxOffsetX = -WORLD_MIN_X;
+    const minOffsetY = viewportHeight - WORLD_MAX_Y;
+    const maxOffsetY = -WORLD_MIN_Y;
+
+    return {
+        x: minOffsetX > maxOffsetX ? (minOffsetX + maxOffsetX) / 2 : Math.min(maxOffsetX, Math.max(minOffsetX, targetX)),
+        y: minOffsetY > maxOffsetY ? (minOffsetY + maxOffsetY) / 2 : Math.min(maxOffsetY, Math.max(minOffsetY, targetY)),
+    };
+}
+
 function readStoredCanvasDraft(): CanvasState | null {
     if (typeof window === 'undefined') {
         return null;
@@ -73,7 +100,7 @@ export const InfiniteCanvas = () => {
 
     const [nodes, setNodes] = useState<Node[]>(() => initialDraft?.nodes ?? []);
     const [connections, setConnections] = useState<Connection[]>(() => initialDraft?.connections ?? []);
-    const [offset, setOffset] = useState({ x: 0, y: 0 });
+    const [offset, setOffset] = useState(() => computeInitialOffset(initialDraft?.nodes ?? []));
     const [isPanning, setIsPanning] = useState(false);
     const [activeTool, setActiveTool] = useState('select');
     const [contextBuffer, setContextBuffer] = useState<ContextItem[]>(() => initialDraft?.contextBuffer ?? []);
