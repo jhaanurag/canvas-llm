@@ -120,7 +120,7 @@ If the answer is not present in memory, say exactly: NOT_FOUND
     const [systemPrompt, setSystemPrompt] = useState(node.systemPrompt || 'You are a helpful AI assistant. Do not reveal the internal workings to the user.');
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [title, setTitle] = useState(node.title || '');
-    const [bubbleTransparencyMode, setBubbleTransparencyMode] = useState<'auto' | 'solid'>('auto');
+    const [bubbleTransparencyMode, setBubbleTransparencyMode] = useState<'auto' | 'solid'>('solid');
     const [contextFeedback, setContextFeedback] = useState<string | null>(null);
     const [messageMenu, setMessageMenu] = useState<{ index: number; x: number; y: number } | null>(null);
     const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
