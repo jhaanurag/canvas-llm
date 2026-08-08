@@ -16,11 +16,14 @@ type ChatMessage = {
 const PROXY_UNAVAILABLE_MESSAGE =
     "The AI service is temporarily unavailable right now. Please try again in a moment.";
 
+export type PromptMode = 'router-spawn' | 'spawn-only' | 'memory-subagent' | 'post-memory';
+
 export async function* streamGeminiResponse(
     prompt: string,
     history: ChatHistoryEntry[] = [],
     files: { data: string; mimeType: string }[] = [],
-    systemPrompt: string = 'You are a helpful AI assistant. Do not reveal the internal workings to the user.'
+    systemPrompt: string = 'You are a helpful AI assistant. Do not reveal the internal workings to the user.',
+    promptMode?: PromptMode
 ) {
     const messages: ChatMessage[] = [
         { role: 'system', content: systemPrompt },
@@ -59,7 +62,11 @@ export async function* streamGeminiResponse(
     const body = {
         model: "gpt-4.1-2025-04-14",
         messages,
-        stream: true
+        stream: true,
+        // Orchestration/subagent instruction text is injected server-side by
+        // /api/llm based on this flag — it never leaves the server, so it
+        // doesn't show up in the browser's network tab or the JS bundle.
+        ...(promptMode ? { promptMode } : {})
     };
 
     try {

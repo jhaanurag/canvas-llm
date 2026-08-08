@@ -7,8 +7,74 @@ const GITHUB_ACCESS_TOKEN = process.env.GITHUB_COPILOT_ACCESS_TOKEN;
 const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token';
 const DEFAULT_COPILOT_API_BASE = 'https://api.githubcopilot.com';
 
-/** Max request body size (256 KB) to prevent abuse. */
-const MAX_BODY_SIZE = 256 * 1024;
+/**
+ * Max request body size. Vercel's Node serverless functions hard-cap
+ * request bodies at ~4.5 MB regardless of this value, so stay under that
+ * so a too-large request fails with our message, not a platform 413.
+ */
+const MAX_BODY_SIZE = 4 * 1024 * 1024;
+
+// ── Orchestration/subagent prompts ──
+// Kept server-side only so this instruction text never appears in the
+// browser's network tab or the client JS bundle. The client only sends a
+// `promptMode` flag; this route splices the real instructions into the
+// system message before forwarding to Copilot.
+const ROUTER_SPAWN_SUFFIX = `
+
+If the answer can be produced from the active conversation, answer normally.
+If the user is asking for information that may only exist in offloaded memory, reply with exactly one line in this format and nothing else:
+((ask_memory: short focused retrieval question))
+Never expose or explain this syntax to the user.
+
+If the user explicitly asks you to open, spawn, create, or make new chat windows/chats for deeper dives, or says "yes" after you offered deep-dive chat windows, reply with exactly one line in this format and nothing else:
+((spawn_chats: [{"title":"Short title","prompt":"Prompt for the new chat"}]))
+Use valid JSON. Keep titles short and prompts specific. Never expose or explain this syntax to the user.`;
+
+const SPAWN_ONLY_SUFFIX = `
+
+If the user explicitly asks you to open, spawn, create, or make new chat windows/chats for deeper dives, or says "yes" after you offered deep-dive chat windows, reply with exactly one line in this format and nothing else:
+((spawn_chats: [{"title":"Short title","prompt":"Prompt for the new chat"}]))
+Use valid JSON. Keep titles short and prompts specific. Never expose or explain this syntax to the user.`;
+
+const POST_MEMORY_SUFFIX =
+    '\n\nYou have already queried the memory subagent for this turn. Do not say you lack access to subagents or memory tools. Use the memory subagent result above if it helps answer the user.';
+
+const MEMORY_SUBAGENT_PROMPT = `You are the memory subagent for one chat window.
+You can only answer from the offloaded memory blocks provided to you.
+Be concise and retrieval-focused.
+If the answer is not present in memory, say exactly: NOT_FOUND`;
+
+const PROMPT_MODE_SUFFIXES: Record<string, string> = {
+    'router-spawn': ROUTER_SPAWN_SUFFIX,
+    'spawn-only': SPAWN_ONLY_SUFFIX,
+    'post-memory': POST_MEMORY_SUFFIX,
+};
+
+function applyPromptMode(parsed: { messages?: Array<{ role: string; content: unknown }>; promptMode?: string }) {
+    const { promptMode, ...rest } = parsed;
+    const messages = Array.isArray(rest.messages) ? rest.messages : [];
+    const systemMessage = messages.find(m => m.role === 'system');
+
+    if (promptMode === 'memory-subagent') {
+        if (systemMessage) {
+            systemMessage.content = MEMORY_SUBAGENT_PROMPT;
+        } else {
+            messages.unshift({ role: 'system', content: MEMORY_SUBAGENT_PROMPT });
+        }
+    } else if (promptMode && PROMPT_MODE_SUFFIXES[promptMode]) {
+        const suffix = PROMPT_MODE_SUFFIXES[promptMode];
+        if (systemMessage && typeof systemMessage.content === 'string') {
+            systemMessage.content += suffix;
+        } else if (systemMessage) {
+            // multimodal content array on a system message shouldn't happen, but guard anyway
+            messages.unshift({ role: 'system', content: suffix.trim() });
+        } else {
+            messages.unshift({ role: 'system', content: suffix.trim() });
+        }
+    }
+
+    return { ...rest, messages };
+}
 
 const STREAM_HEADERS = {
     'Content-Type': 'text/event-stream; charset=utf-8',
@@ -84,6 +150,7 @@ function copilotHeaders(apiKey: string) {
         'Editor-Plugin-Version': 'copilot-chat/0.26.7',
         'User-Agent': 'GitHubCopilotChat/0.26.7',
         'Openai-Intent': 'conversation-panel',
+        'Copilot-Vision-Request': 'true',
         'X-Github-Api-Version': '2025-04-01',
         'X-Request-Id': crypto.randomUUID(),
     };
@@ -127,7 +194,8 @@ export async function POST(request: Request) {
         return new Response('Request body too large', { status: 413 });
     }
 
-    // Validate it's at least well-formed JSON with a messages array
+    // Validate it's at least well-formed JSON with a messages array, and
+    // splice in the real orchestration/subagent prompt server-side.
     try {
         const parsed = JSON.parse(requestBody);
         if (!parsed || typeof parsed !== 'object') {
@@ -136,6 +204,7 @@ export async function POST(request: Request) {
         if (!Array.isArray(parsed.messages)) {
             return new Response('Missing or invalid "messages" field', { status: 400 });
         }
+        requestBody = JSON.stringify(applyPromptMode(parsed));
     } catch {
         return new Response('Invalid JSON in request body', { status: 400 });
     }

@@ -7,7 +7,7 @@ import { Node, Message, MemoryEntry } from '@/types';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { streamGeminiResponse } from '@/lib/llm';
+import { streamGeminiResponse, PromptMode } from '@/lib/llm';
 import { v4 as uuidv4 } from 'uuid';
 import { Send, Plus, X, GripVertical, Paperclip, Settings, Droplets, GitBranchPlus, Trash2, ChevronUp, ChevronDown, Brain, Scissors, PencilLine, Archive, LoaderCircle, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -51,23 +51,6 @@ const ChatNodeComponent = ({
 }: ChatNodeProps) => {
     const MEMORY_REQUEST_PATTERN = /^\s*\(\(ask_memory:\s*([\s\S]+?)\s*\)\)\s*$/i;
     const SPAWN_CHATS_PATTERN = /^\s*\(\(spawn_chats:\s*([\s\S]+?)\s*\)\)\s*$/i;
-    const MAIN_AGENT_ROUTER_PROMPT = `
-If the answer can be produced from the active conversation, answer normally.
-If the user is asking for information that may only exist in offloaded memory, reply with exactly one line in this format and nothing else:
-((ask_memory: short focused retrieval question))
-Never expose or explain this syntax to the user.
-`;
-    const SPAWN_CHAT_WINDOWS_PROMPT = `
-If the user explicitly asks you to open, spawn, create, or make new chat windows/chats for deeper dives, or says "yes" after you offered deep-dive chat windows, reply with exactly one line in this format and nothing else:
-((spawn_chats: [{"title":"Short title","prompt":"Prompt for the new chat"}]))
-Use valid JSON. Keep titles short and prompts specific. Never expose or explain this syntax to the user.
-`;
-    const MEMORY_SUBAGENT_SYSTEM_PROMPT = `
-You are the memory subagent for one chat window.
-You can only answer from the offloaded memory blocks provided to you.
-Be concise and retrieval-focused.
-If the answer is not present in memory, say exactly: NOT_FOUND
-`;
     const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
     const outerRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
     const headerButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-xs)]';
@@ -222,10 +205,11 @@ If the answer is not present in memory, say exactly: NOT_FOUND
         prompt: string,
         history: { role: 'user' | 'assistant' | 'model'; text: string }[] = [],
         files: { data: string; mimeType: string }[] = [],
-        promptOverride?: string
+        promptOverride?: string,
+        promptMode?: PromptMode
     ) => {
         let text = '';
-        const stream = streamGeminiResponse(prompt, history, files, promptOverride ?? systemPrompt);
+        const stream = streamGeminiResponse(prompt, history, files, promptOverride ?? systemPrompt, promptMode);
         for await (const chunk of stream) {
             text += chunk;
         }
@@ -404,14 +388,16 @@ If the answer is not present in memory, say exactly: NOT_FOUND
                     text,
                     history,
                     filesToSend,
-                    `${systemPrompt}\n\n${MAIN_AGENT_ROUTER_PROMPT}\n\n${SPAWN_CHAT_WINDOWS_PROMPT}`
+                    systemPrompt,
+                    'router-spawn'
                 );
             } else if (!hasMemory) {
                 orchestratorResponse = await collectStreamText(
                     text,
                     history,
                     filesToSend,
-                    `${systemPrompt}\n\n${SPAWN_CHAT_WINDOWS_PROMPT}`
+                    systemPrompt,
+                    'spawn-only'
                 );
             }
 
@@ -445,7 +431,8 @@ If the answer is not present in memory, say exactly: NOT_FOUND
                     `Stored memory:\n${buildMemoryBankText()}\n\nQuestion:\n${memoryQuery}\n\nAnswer only from stored memory. If the user is asking what memory exists, list the stored memory clearly.`,
                     [],
                     [],
-                    MEMORY_SUBAGENT_SYSTEM_PROMPT
+                    '',
+                    'memory-subagent'
                 );
 
                 setMemoryWorkflow({
@@ -467,7 +454,8 @@ If the answer is not present in memory, say exactly: NOT_FOUND
                     text,
                     finalHistory,
                     filesToSend,
-                    `${systemPrompt}\n\nYou have already queried the memory subagent for this turn. Do not say you lack access to subagents or memory tools. Use the memory subagent result above if it helps answer the user.`
+                    systemPrompt,
+                    'post-memory'
                 );
                 for await (const chunk of finalStream) {
                     if (assistantText.length === 0) {
@@ -509,7 +497,7 @@ If the answer is not present in memory, say exactly: NOT_FOUND
             setAssistantActivity(null);
             setIsSending(false);
         }
-    }, [MEMORY_REQUEST_PATTERN, MAIN_AGENT_ROUTER_PROMPT, MEMORY_SUBAGENT_SYSTEM_PROMPT, SPAWN_CHAT_WINDOWS_PROMPT, SPAWN_CHATS_PATTERN, attachedFiles, buildMemoryBankText, buildVisibleHistory, collectStreamText, input, isSending, memoryEntries.length, node.messages, onSpawnChats, parseSpawnSpecs, shouldForceMemoryLookup, systemPrompt, updateMessages]);
+    }, [MEMORY_REQUEST_PATTERN, SPAWN_CHATS_PATTERN, attachedFiles, buildMemoryBankText, buildVisibleHistory, collectStreamText, input, isSending, memoryEntries.length, node.messages, onSpawnChats, parseSpawnSpecs, shouldForceMemoryLookup, systemPrompt, updateMessages]);
 
     useEffect(() => {
         if (node.autoSend && node.initialPrompt && node.messages.length === 0) {
@@ -885,9 +873,44 @@ If the answer is not present in memory, say exactly: NOT_FOUND
                     )}
                 </div>
 
+                {attachedFiles.length > 0 && (
+                    <div data-no-drag className="flex flex-wrap gap-1.5 border-t border-[#1b2b33]/22 bg-[#fffdf7]/80 px-3 pt-2.5">
+                        {attachedFiles.map((file, idx) => (
+                            <div
+                                key={`${file.name}-${idx}`}
+                                className={clsx(
+                                    "group relative flex items-center gap-1.5 overflow-hidden border border-[#1b2b33]/20 bg-white pr-1.5",
+                                    controlRadiusClass
+                                )}
+                            >
+                                {file.mimeType.startsWith('image/') ? (
+                                    <Image
+                                        src={file.data}
+                                        alt={file.name}
+                                        width={28}
+                                        height={28}
+                                        unoptimized
+                                        className="h-7 w-7 shrink-0 object-cover"
+                                    />
+                                ) : (
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center text-sm">📎</span>
+                                )}
+                                <span className="max-w-20 truncate text-[10px] font-medium text-[#1b2b33]">{file.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1b2b33]/10 text-[#1b2b33] hover:bg-[#1b2b33]/25"
+                                    aria-label={`Remove ${file.name}`}
+                                >
+                                    <X size={10} />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
                 <div className={clsx(
                     "relative flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
-                    isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50"
+                    attachedFiles.length > 0 ? "border-transparent" : (isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50")
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
                     <Button
