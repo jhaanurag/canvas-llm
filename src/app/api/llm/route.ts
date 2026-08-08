@@ -1,8 +1,11 @@
 export const dynamic = 'force-dynamic';
 
-const LOCAL_PROXY_URL = process.env.LLM_LOCAL_PROXY_URL;
-const REMOTE_PROXY_URL = process.env.LLM_REMOTE_PROXY_URL;
-const PROXY_API_KEY = process.env.LLM_PROXY_KEY;
+// Long-lived GitHub OAuth token (never expires). Exchanged per-request for a
+// short-lived (~25 min) Copilot session token — no disk/cache needed, so this
+// runs fine as a stateless Vercel serverless function.
+const GITHUB_ACCESS_TOKEN = process.env.GITHUB_COPILOT_ACCESS_TOKEN;
+const COPILOT_TOKEN_URL = 'https://api.github.com/copilot_internal/v2/token';
+const DEFAULT_COPILOT_API_BASE = 'https://api.githubcopilot.com';
 
 /** Max request body size (256 KB) to prevent abuse. */
 const MAX_BODY_SIZE = 256 * 1024;
@@ -12,9 +15,6 @@ const STREAM_HEADERS = {
     'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
 } as const;
-
-const PROXY_UNAVAILABLE_MESSAGE =
-    "The AI service is temporarily unavailable right now. Please try again in a moment. Heads up: the Render proxy can take a little time to wake up on the first request. 🙋 Give it 20-60 seconds, then try again.";
 
 // ── Simple in-memory sliding-window rate limiter ──
 // Limits each user to RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW_MS.
@@ -51,20 +51,42 @@ if (typeof globalThis !== 'undefined') {
     }
 }
 
-function buildProxyUrl(baseUrl: string) {
-    return `${baseUrl.replace(/\/$/, '')}/v1/chat/completions`;
-}
-
-async function tryProxy(baseUrl: string, body: string) {
-    return fetch(buildProxyUrl(baseUrl), {
-        method: 'POST',
+async function mintCopilotToken(): Promise<{ token: string; apiBase: string }> {
+    const response = await fetch(COPILOT_TOKEN_URL, {
         headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${PROXY_API_KEY}`,
+            accept: 'application/json',
+            authorization: `token ${GITHUB_ACCESS_TOKEN}`,
+            'editor-version': 'vscode/1.85.1',
+            'editor-plugin-version': 'copilot/1.155.0',
+            'user-agent': 'GithubCopilot/1.155.0',
         },
-        body,
         cache: 'no-store',
     });
+
+    if (!response.ok) {
+        throw new Error(`Failed to mint Copilot session token: ${response.status} ${await response.text()}`);
+    }
+
+    const data = await response.json();
+    if (!data?.token) {
+        throw new Error('Copilot token response missing "token" field');
+    }
+
+    return { token: data.token, apiBase: data?.endpoints?.api || DEFAULT_COPILOT_API_BASE };
+}
+
+function copilotHeaders(apiKey: string) {
+    return {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Copilot-Integration-Id': 'vscode-chat',
+        'Editor-Version': 'vscode/1.97.2',
+        'Editor-Plugin-Version': 'copilot-chat/0.26.7',
+        'User-Agent': 'GitHubCopilotChat/0.26.7',
+        'Openai-Intent': 'conversation-panel',
+        'X-Github-Api-Version': '2025-04-01',
+        'X-Request-Id': crypto.randomUUID(),
+    };
 }
 
 export async function POST(request: Request) {
@@ -84,11 +106,8 @@ export async function POST(request: Request) {
     }
 
     // ── Config check ──
-    if (!LOCAL_PROXY_URL || !REMOTE_PROXY_URL || !PROXY_API_KEY) {
-        return new Response(
-            'LLM proxy is not configured. Set LLM_LOCAL_PROXY_URL, LLM_REMOTE_PROXY_URL, and LLM_PROXY_KEY.',
-            { status: 500 }
-        );
+    if (!GITHUB_ACCESS_TOKEN) {
+        return new Response('LLM proxy is not configured. Set GITHUB_COPILOT_ACCESS_TOKEN.', { status: 500 });
     }
 
     // ── Input validation ──
@@ -121,37 +140,34 @@ export async function POST(request: Request) {
         return new Response('Invalid JSON in request body', { status: 400 });
     }
 
-    // ── Proxy with fallback ──
-    const targets = [LOCAL_PROXY_URL, REMOTE_PROXY_URL];
-    const failures: string[] = [];
-
-    for (const target of targets) {
-        try {
-            const response = await tryProxy(target, requestBody);
-
-            if (response.ok && response.body) {
-                return new Response(response.body, {
-                    status: response.status,
-                    headers: STREAM_HEADERS,
-                });
-            }
-
-            const errorText = await response.text();
-            const retryableStatus = response.status >= 500 || response.status === 429;
-            failures.push(`${target} -> ${response.status}${errorText ? ` ${errorText}` : ''}`);
-
-            if (!retryableStatus) {
-                return new Response(errorText || `LLM proxy returned ${response.status}`, {
-                    status: response.status,
-                });
-            }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown connection error';
-            failures.push(`${target} -> ${message}`);
-        }
+    // ── Mint a fresh short-lived Copilot session token and forward ──
+    let session: { token: string; apiBase: string };
+    try {
+        session = await mintCopilotToken();
+    } catch (error) {
+        console.error('[Copilot Token Error]', error);
+        return new Response('Failed to authenticate with GitHub Copilot.', { status: 502 });
     }
 
-    console.error('[LLM Proxy Failover Error]', failures.join(' | '));
+    try {
+        const response = await fetch(`${session.apiBase.replace(/\/$/, '')}/chat/completions`, {
+            method: 'POST',
+            headers: copilotHeaders(session.token),
+            body: requestBody,
+            cache: 'no-store',
+        });
 
-    return new Response(PROXY_UNAVAILABLE_MESSAGE, { status: 502 });
+        if (!response.ok || !response.body) {
+            const errorText = await response.text();
+            return new Response(errorText || `Copilot returned ${response.status}`, { status: response.status });
+        }
+
+        return new Response(response.body, {
+            status: response.status,
+            headers: STREAM_HEADERS,
+        });
+    } catch (error) {
+        console.error('[Copilot Proxy Error]', error);
+        return new Response('The AI service is temporarily unavailable. Please try again in a moment.', { status: 502 });
+    }
 }

@@ -1,10 +1,111 @@
 model_list:
   - model_name: gpt-4.1-2025-04-14
     litellm_params:
-      model: github_copilot/gpt-4.1-2025-04-14
-      extra_headers:
-        Editor-Version: vscode/1.97.2
-        Copilot-Integration-Id: vscode-chat
-        User-Agent: GitHubCopilot/1.200.0
-        Copilot-Vision-Request: "true"
-        Editor-Plugin-Version: copilot/1.200.0
+            model: github_copilot/gpt-4.1-2025-04-14
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4.1
+    litellm_params:
+            model: github_copilot/gpt-4.1
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o-2024-11-20
+    litellm_params:
+            model: github_copilot/gpt-4o-2024-11-20
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o-2024-08-06
+    litellm_params:
+            model: github_copilot/gpt-4o-2024-08-06
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o-2024-05-13
+    litellm_params:
+            model: github_copilot/gpt-4o-2024-05-13
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o
+    litellm_params:
+            model: github_copilot/gpt-4o
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o-mini
+    litellm_params:
+            model: github_copilot/gpt-4o-mini
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4o-mini-2024-07-18
+    litellm_params:
+            model: github_copilot/gpt-4o-mini-2024-07-18
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-4-o-preview
+    litellm_params:
+            model: github_copilot/gpt-4-o-preview
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Copilot-Vision-Request: "true"
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-3.5-turbo
+    litellm_params:
+            model: github_copilot/gpt-3.5-turbo
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Editor-Plugin-Version: copilot/1.200.0
+  - model_name: gpt-3.5-turbo-0613
+    litellm_params:
+            model: github_copilot/gpt-3.5-turbo-0613
+            extra_headers:
+                Editor-Version: vscode/1.97.2
+                Copilot-Integration-Id: vscode-chat
+                User-Agent: GitHubCopilot/1.200.0
+                Editor-Plugin-Version: copilot/1.200.0
+# All 11 models above confirmed working (Azure OpenAI-hosted, via
+# api.individual.githubcopilot.com/chat/completions).
+# App currently only calls gpt-4.1-2025-04-14 (src/lib/llm.ts) — the best of
+# this set (1M token context, newest, strongest reasoning/coding).
+#
+# Removed as not usable on this account's Copilot Free plan (all return
+# model_not_supported despite showing policy "enabled"): claude-opus-4.5,
+# claude-sonnet-4.5, claude-haiku-4.5, gpt-5-mini, gpt-5.3-codex,
+# gemini-3.1-pro-preview, kimi-k2.7-code, kimi-k3, mai-code-1-flash*.
+#
+# NOTE: this file is not read by the app anymore — src/app/api/llm/route.ts
+# calls GitHub Copilot directly (mints its own session token per request) and
+# does not run a litellm process. Kept for reference / possible local use.

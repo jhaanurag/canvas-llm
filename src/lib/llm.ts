@@ -13,8 +13,8 @@ type ChatMessage = {
     content: string | ChatContentPart[];
 };
 
-const RENDER_COLD_START_MESSAGE =
-    "The AI service is temporarily unavailable right now. Please try again in a moment.\n\nHeads up: the Render proxy may take a little time to wake up on the first request. 🙋 Wait 20-60 seconds, then try again.";
+const PROXY_UNAVAILABLE_MESSAGE =
+    "The AI service is temporarily unavailable right now. Please try again in a moment.";
 
 export async function* streamGeminiResponse(
     prompt: string,
@@ -75,7 +75,7 @@ export async function* streamGeminiResponse(
             const err = await response.text();
             console.error('[LLM Error]', response.status, err);
             if (response.status === 502) {
-                throw new Error(err || RENDER_COLD_START_MESSAGE);
+                throw new Error(err || PROXY_UNAVAILABLE_MESSAGE);
             }
             throw new Error(err || `LLM Proxy returned ${response.status}`);
         }
@@ -112,7 +112,7 @@ export async function* streamGeminiResponse(
     } catch (error) {
         console.error('[LLM Fetch Error]', error);
         if (error instanceof TypeError && error.message.includes('fetch')) {
-            yield `Error: Cannot connect to the LLM service. The app tries your local proxy first and then the hosted backup.\n\nOriginal error: ${error.message}`;
+            yield `Error: Cannot connect to the LLM service.\n\nOriginal error: ${error.message}`;
         } else {
             yield `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`;
         }
