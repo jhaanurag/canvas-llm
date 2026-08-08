@@ -950,7 +950,7 @@ export const InfiniteCanvas = () => {
     return (
         <div
             ref={canvasRef}
-            className="canvas-area relative h-screen w-screen overflow-hidden font-sans"
+            className="canvas-area relative h-screen w-screen select-none overflow-hidden font-sans"
             onPointerDownCapture={onPointerDownCapture}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

@@ -576,9 +576,9 @@ If the answer is not present in memory, say exactly: NOT_FOUND
         <div
             ref={nodeShellRef}
             className={clsx(
-                "absolute pointer-events-auto",
+                "absolute pointer-events-auto select-none",
                 outerRadiusClass,
-                isDragging && "select-none cursor-grabbing"
+                isDragging && "cursor-grabbing"
             )}
             style={{
                 left: node.x,
@@ -825,7 +825,7 @@ If the answer is not present in memory, say exactly: NOT_FOUND
                                                     openMessageMenu(index, e.clientX, e.clientY);
                                                 }}
                                                 className={clsx(
-                                                    "min-w-0 max-w-[94%] break-words px-4 py-2 text-xs leading-tight border font-medium",
+                                                    "min-w-0 max-w-[94%] select-text break-words px-4 py-2 text-xs leading-tight border font-medium",
                                                     dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                     msg.kind === 'memory-request' && "border-[#a78bfa]/30 bg-[#f4efff] text-[#4c2f8a]",
                                                     msg.kind === 'memory-response' && "border-[#8acfc5]/40 bg-[#e4fbf6] text-[#145a50]",
