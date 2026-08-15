@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Sora } from "next/font/google";
 import { ConvexClientProvider } from "@/components/providers/ConvexClientProvider";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const brandSans = Sora({
@@ -31,6 +32,7 @@ export default function RootLayout({
         <ConvexClientProvider>
           {children}
         </ConvexClientProvider>
+        <Analytics />
       </body>
     </html>
   );
