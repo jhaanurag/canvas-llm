@@ -1562,6 +1562,14 @@ export const InfiniteCanvas = () => {
             >
                 {renderedNodes}
             </div>
+            <a
+                href="https://anuragjha.me"
+                target="_blank"
+                rel="author"
+                className="fixed bottom-3 right-4 z-[999] text-[11px] text-zinc-500 hover:text-black font-mono transition-colors"
+            >
+                by Anurag Jha
+            </a>
         </div>
     );
 };
