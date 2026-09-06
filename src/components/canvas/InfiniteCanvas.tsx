@@ -795,20 +795,16 @@ export const InfiniteCanvas = () => {
     }, [addNode, getNextSpawnScreenPoint]);
 
     const dockButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none tracking-wide",
-        showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
-        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
-        isBeautifulUI
-            ? "border-border bg-card hover:bg-secondary/70 hover:border-border"
-            : "border-transparent bg-transparent hover:bg-secondary/70"
+        "inline-flex h-8 items-center justify-center border text-xs font-medium leading-none tracking-wide transition-colors",
+        showButtonLabels ? "gap-1.5 px-3" : "w-8 px-0",
+        sharpEdges ? "rounded-none" : "rounded-lg",
+        "border-border/80 bg-background/80 text-foreground hover:bg-secondary hover:border-border"
     );
     const dockSettingsButtonClass = clsx(
-        "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none",
-        showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
-        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
-        isBeautifulUI
-            ? "border-border bg-card hover:bg-secondary/70 hover:border-border"
-            : "border-transparent bg-transparent hover:bg-secondary/70"
+        "inline-flex h-8 items-center justify-center border text-xs font-medium leading-none transition-colors",
+        showButtonLabels ? "gap-1.5 px-3" : "w-8 px-0",
+        sharpEdges ? "rounded-none" : "rounded-lg",
+        "border-border/80 bg-background/80 text-foreground hover:bg-secondary hover:border-border"
     );
     const dockSettingsWidthClass = "w-full max-w-[min(100vw-1.5rem,78rem)]";
     const dockContextWidthClass = "w-fit max-w-[min(100vw-1.5rem,74rem)]";
@@ -980,10 +976,9 @@ export const InfiniteCanvas = () => {
             >
                 <div
                     className={clsx(
-                        "pointer-events-auto flex items-center gap-2 border px-3 py-2 text-[11px] font-semibold shadow-[0_10px_26px_rgba(33,36,41,0.12)]",
+                        "pointer-events-auto flex items-center gap-2 border border-border/80 bg-card/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm",
                         sharpEdges ? "rounded-none" : "rounded-full"
                     )}
-                    style={{ backgroundColor: surfaceColor, color: textColor, borderColor: `${gridColor}35` }}
                 >
                     <span>Local-only canvas on this browser/device</span>
                 </div>
@@ -1009,7 +1004,7 @@ export const InfiniteCanvas = () => {
                             </div>
                             <button
                                 className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setIsBeautifulUI((prev) => !prev)}
@@ -1019,7 +1014,7 @@ export const InfiniteCanvas = () => {
                                 {isBeautifulUI ? 'Beautiful' : 'Fast'}
                             </button>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Snap to Grid</div>
                                 <div className="text-[10px] opacity-70">Grid step: {gridResolution}px.</div>
@@ -1027,7 +1022,7 @@ export const InfiniteCanvas = () => {
                             <div className="flex items-center gap-2">
                                 <button
                                     className={clsx(
-                                    "inline-flex h-9 min-w-16 items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)]",
+                                    "inline-flex h-9 min-w-16 items-center justify-center border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)]",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setSnapToGrid((prev) => !prev)}
@@ -1048,14 +1043,14 @@ export const InfiniteCanvas = () => {
                                         setGridResolution(Math.max(8, Math.min(120, Math.round(next / 4) * 4)));
                                     }}
                                     className={clsx(
-                                        "h-9 w-16 border border-[#21404a]/35 bg-[#fff8ed] px-2 text-[11px] font-semibold",
+                                        "h-9 w-16 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-2 text-[11px] font-semibold",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     style={{ color: textColor }}
                                 />
                             </div>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Edge Mode</div>
                                 <div className="text-[10px] opacity-70">Toggle wins first. Rounded uses the stored radius value below.</div>
@@ -1075,7 +1070,7 @@ export const InfiniteCanvas = () => {
                                             setCornerRadius(Math.max(0, Math.min(32, Math.round(next))));
                                         }}
                                         className={clsx(
-                                            "h-9 w-16 border border-[#21404a]/35 bg-[#fff8ed] px-2 text-[11px] font-semibold",
+                                            "h-9 w-16 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-2 text-[11px] font-semibold",
                                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                         )}
                                         style={{ color: textColor }}
@@ -1083,7 +1078,7 @@ export const InfiniteCanvas = () => {
                                 </label>
                                 <button
                                     className={clsx(
-                                        "inline-flex h-9 min-w-24 self-start items-center justify-center border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                        "inline-flex h-9 min-w-24 self-start items-center justify-center border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     onClick={() => setSharpEdges((prev) => !prev)}
@@ -1094,7 +1089,7 @@ export const InfiniteCanvas = () => {
                                 </button>
                             </div>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Menu Position</div>
                                 <div className="text-[10px] opacity-70">Place the dock at the top or bottom.</div>
@@ -1111,7 +1106,7 @@ export const InfiniteCanvas = () => {
                                         "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'top'
-                                            ? "text-[#f8fffd]"
+                                            ? "text-primary-foreground"
                                             : "text-foreground hover:bg-secondary"
                                     )}
                                     onClick={() => setDockPosition('top')}
@@ -1124,7 +1119,7 @@ export const InfiniteCanvas = () => {
                                         "inline-flex h-8 min-w-16 items-center justify-center px-3 text-[11px] font-semibold",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'bottom'
-                                            ? "text-[#f8fffd]"
+                                            ? "text-primary-foreground"
                                             : "text-foreground hover:bg-secondary"
                                     )}
                                     onClick={() => setDockPosition('bottom')}
@@ -1134,14 +1129,14 @@ export const InfiniteCanvas = () => {
                                 </button>
                             </div>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Minimap</div>
                                 <div className="text-[10px] opacity-70">Toggle the minimap overlay in both UI modes.</div>
                             </div>
                             <button
                                 className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setShowMinimap((prev) => !prev)}
@@ -1152,14 +1147,14 @@ export const InfiniteCanvas = () => {
                                 {showMinimap ? 'Shown' : 'Hidden'}
                             </button>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Button Labels</div>
                                 <div className="text-[10px] opacity-70">Show or hide text labels in the top dock buttons.</div>
                             </div>
                             <button
                                 className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setShowButtonLabels((prev) => !prev)}
@@ -1169,14 +1164,14 @@ export const InfiniteCanvas = () => {
                                 {showButtonLabels ? 'Shown' : 'Hidden'}
                             </button>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Animations</div>
                                 <div className="text-[10px] opacity-70">Controls chat entrance motion and AI activity effects.</div>
                             </div>
                             <button
                                 className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-[#21404a]/35 bg-[#fff8ed] px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setAnimationsEnabled((prev) => !prev)}
@@ -1186,7 +1181,7 @@ export const InfiniteCanvas = () => {
                                 {animationsEnabled ? 'On' : 'Off'}
                             </button>
                         </div>
-                        <div className="mt-3 flex flex-col gap-2 border-t border-[#1b2b33]/15 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Colour</div>
                                 <div className="text-[10px] opacity-70">Accent, surface, grid, and text colors.</div>
@@ -1339,20 +1334,18 @@ export const InfiniteCanvas = () => {
                         dockMenuWidthClass,
                         dockMenuOrderClass,
                         isBeautifulUI
-                            ? ["border border-border px-3 py-2.5", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
+                            ? ["border border-border/80 bg-card/95 px-2.5 py-1.5 shadow-md backdrop-blur-sm", panelRadiusClass]
                             : "px-0 py-0"
                     )}
-                    style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                 >
                     <div className="hover-scroll-x overflow-x-auto whitespace-nowrap">
                         <div className="flex w-max items-center justify-center gap-2" style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-x' }}>
                             {isBeautifulUI && (
                                 <div className={clsx(
-                                    "inline-flex h-10 items-center gap-1.5 border px-3 text-[11px] font-semibold tracking-[0.14em]",
-                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
-                                    "border-border bg-card"
-                                )} style={{ color: textColor }}>
-                                    <MapIcon size={13} />
+                                    "inline-flex h-8 items-center gap-1.5 border border-border/80 bg-background/80 px-2.5 text-xs font-semibold tracking-wider text-foreground",
+                                    sharpEdges ? "rounded-none" : "rounded-lg"
+                                )}>
+                                    <MapIcon size={14} />
                                     RabbitHoleAI
                                 </div>
                             )}
