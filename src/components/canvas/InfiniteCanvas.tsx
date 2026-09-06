@@ -269,34 +269,97 @@ export const InfiniteCanvas = () => {
         };
     }, [persistedCanvasState]);
 
-    // Global selection listener for better reliability
+    // Global selection listener for better reliability across all DOM elements and textareas
     useEffect(() => {
         const handleSelectionChange = () => {
             // Wait for next tick to ensure selection is complete and layout is stable
             requestAnimationFrame(() => {
                 const activeEl = document.activeElement as HTMLElement | null;
-                if (activeEl?.closest('[data-selection-menu]')) return;
-                const sel = window.getSelection();
-                const text = sel?.toString().trim();
+                if (activeEl?.closest('[data-selection-menu]') || document.querySelector('[data-selection-menu]:hover')) {
+                    return;
+                }
 
-                // Only showing menu if there is actual text selected
-                if (text && text.length > 0) {
-                    try {
-                        const range = sel!.getRangeAt(0);
-                        const rect = range.getBoundingClientRect();
-                        const selectionKey = `${text}:${Math.round(rect.left)}:${Math.round(rect.bottom)}`;
-                        if (lastSelectionRef.current === selectionKey) return;
-                        lastSelectionRef.current = selectionKey;
+                let selectedText = '';
+                let rect: { left: number; top: number; right: number; bottom: number; width: number; height: number } | null = null;
+                let targetNodeId = '';
 
-                        setGlobalSelection({
-                            text: text,
-                            x: rect.left,
-                            y: rect.bottom + 40,
-                            nodeId: '' // Generic selection
-                        });
-                    } catch {
-                        // Ignore errors from getRangeAt if selection is invalid
+                // 1. Check if active element is an input or textarea with selected text (Notes, Prompts, Memory)
+                if (activeEl && (activeEl instanceof HTMLTextAreaElement || activeEl instanceof HTMLInputElement)) {
+                    const start = activeEl.selectionStart;
+                    const end = activeEl.selectionEnd;
+                    if (typeof start === 'number' && typeof end === 'number' && end > start) {
+                        const val = activeEl.value.substring(start, end).trim();
+                        if (val.length > 0) {
+                            selectedText = val;
+                            const elRect = activeEl.getBoundingClientRect();
+                            rect = {
+                                left: elRect.left,
+                                top: elRect.top,
+                                right: elRect.right,
+                                bottom: elRect.bottom,
+                                width: elRect.width,
+                                height: elRect.height,
+                            };
+                            targetNodeId = activeEl.closest('[data-node-id]')?.getAttribute('data-node-id') || '';
+                        }
                     }
+                }
+
+                // 2. Check window.getSelection() for standard DOM text selection (Messages, Spans, Titles)
+                if (!selectedText) {
+                    const sel = window.getSelection();
+                    const val = sel?.toString().trim();
+                    if (val && val.length > 0 && sel && sel.rangeCount > 0) {
+                        try {
+                            const range = sel.getRangeAt(0);
+                            const r = range.getBoundingClientRect();
+                            if (r.width > 0 || r.height > 0) {
+                                selectedText = val;
+                                rect = {
+                                    left: r.left,
+                                    top: r.top,
+                                    right: r.right,
+                                    bottom: r.bottom,
+                                    width: r.width,
+                                    height: r.height,
+                                };
+                                const container = range.commonAncestorContainer;
+                                const el = container instanceof Element ? container : container.parentElement;
+                                targetNodeId = el?.closest('[data-node-id]')?.getAttribute('data-node-id') || '';
+                            }
+                        } catch {
+                            // Ignore errors from getRangeAt if selection is invalid
+                        }
+                    }
+                }
+
+                if (selectedText && rect) {
+                    // Position menu nicely above or below selection
+                    const menuWidth = 180;
+                    const menuHeight = 42;
+                    const centerX = rect.left + (rect.width / 2);
+                    const clampedX = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, centerX - (menuWidth / 2)));
+
+                    let clampedY: number;
+                    if (rect.top - menuHeight - 8 >= 50) {
+                        // Place above selection
+                        clampedY = rect.top - menuHeight - 8;
+                    } else {
+                        // Place below selection
+                        clampedY = rect.bottom + 8;
+                    }
+                    clampedY = Math.max(12, Math.min(window.innerHeight - menuHeight - 12, clampedY));
+
+                    const selectionKey = `${targetNodeId}:${selectedText}:${Math.round(clampedX)}:${Math.round(clampedY)}`;
+                    if (lastSelectionRef.current === selectionKey) return;
+                    lastSelectionRef.current = selectionKey;
+
+                    setGlobalSelection({
+                        text: selectedText,
+                        x: clampedX,
+                        y: clampedY,
+                        nodeId: targetNodeId
+                    });
                 } else {
                     lastSelectionRef.current = '';
                     setGlobalSelection(null);
@@ -305,7 +368,13 @@ export const InfiniteCanvas = () => {
         };
 
         document.addEventListener('selectionchange', handleSelectionChange);
-        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+        window.addEventListener('mouseup', handleSelectionChange);
+        window.addEventListener('keyup', handleSelectionChange);
+        return () => {
+            document.removeEventListener('selectionchange', handleSelectionChange);
+            window.removeEventListener('mouseup', handleSelectionChange);
+            window.removeEventListener('keyup', handleSelectionChange);
+        };
     }, []);
 
     const screenToWorld = useCallback((screenX: number, screenY: number) => {
@@ -946,7 +1015,7 @@ export const InfiniteCanvas = () => {
     return (
         <div
             ref={canvasRef}
-            className="canvas-area relative h-screen w-screen select-none overflow-hidden font-sans"
+            className={clsx("canvas-area relative h-screen w-screen overflow-hidden font-sans", isPanning && "select-none")}
             onPointerDownCapture={onPointerDownCapture}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}

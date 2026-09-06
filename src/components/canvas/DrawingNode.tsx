@@ -143,6 +143,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeauti
 
     return (
         <div
+            data-node-id={node.id}
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,

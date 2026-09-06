@@ -36,12 +36,14 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
             )}
             style={{ left: x, top: y, ...cssVars }}
             onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
         >
             <Button
                 size="sm"
                 variant="ghost"
                 className={clsx("h-8 border border-border/80 bg-background/80 px-3 text-xs font-semibold uppercase tracking-wider text-foreground hover:bg-[color:var(--node-accent)] hover:text-white transition-colors", controlRadiusClass)}
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onClick={onExpand}
             >
                 <Search size={14} className="mr-1.5" />
@@ -51,7 +53,8 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
                 size="sm"
                 variant="ghost"
                 className={clsx("h-8 border border-border/80 bg-background/80 px-2.5 text-xs font-semibold text-foreground hover:bg-[color:var(--node-accent)] hover:text-white transition-colors", controlRadiusClass)}
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onClick={onAddToContext}
                 title="Add to Context"
             >
@@ -61,7 +64,8 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
                 size="sm"
                 variant="ghost"
                 className={clsx("h-8 border border-destructive/30 px-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors", controlRadiusClass)}
-                onMouseDown={(e) => e.preventDefault()}
+                onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onClick={onClose}
                 title="Close"
             >

@@ -38,15 +38,14 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDo
     } as React.CSSProperties;
 
     const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        onMouseDown();
-        if ((e.target as HTMLElement).closest('.drag-handle') && !(e.target as HTMLElement).closest('[data-no-drag]')) {
+        const target = e.target as HTMLElement;
+        const isDragHandle = Boolean(target.closest('.drag-handle') && !target.closest('[data-no-drag]'));
+        if (isDragHandle) {
+            onMouseDown();
             e.preventDefault();
             e.currentTarget.setPointerCapture(e.pointerId);
             setIsDragging(true);
             setDragStart({ x: e.clientX - node.x, y: e.clientY - node.y });
-            e.stopPropagation();
-        } else {
-            setGlobalSelection(null);
             e.stopPropagation();
         }
     };
@@ -80,6 +79,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDo
 
     return (
         <div
+            data-node-id={node.id}
             className={clsx(
                 "absolute pointer-events-auto",
                 outerRadiusClass,
@@ -108,7 +108,7 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDo
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex h-9 shrink-0 cursor-grab items-center justify-between border-b border-border/60 bg-secondary/40 px-3 active:cursor-grabbing",
+                        "drag-handle select-none flex h-9 shrink-0 cursor-grab items-center justify-between border-b border-border/60 bg-secondary/40 px-3 active:cursor-grabbing",
                         (isHovered || isDragging) ? "opacity-100" : "opacity-0"
                     )}
                     style={{ touchAction: 'none' }}
