@@ -9,7 +9,7 @@ import { DrawingNode } from './DrawingNode';
 import { SelectionMenu } from '@/components/ui/SelectionMenu';
 import { v4 as uuidv4 } from 'uuid';
 import { clsx } from 'clsx';
-import { Hand, Image as ImageIcon, Keyboard, MapIcon, MessageSquare, MousePointer2, Pencil, Settings2, StickyNote } from 'lucide-react';
+import { Hand, Image as ImageIcon, Keyboard, MapIcon, MessageSquare, Moon, MousePointer2, Pencil, Settings2, StickyNote, Sun } from 'lucide-react';
 
 const WORLD_MIN_X = -5000;
 const WORLD_MAX_X = 5000;
@@ -113,8 +113,8 @@ export const InfiniteCanvas = () => {
     const [cornerRadius, setCornerRadius] = useState(18);
     const [accentColor, setAccentColor] = useState('#0f766e');
     const [surfaceColor, setSurfaceColor] = useState('#fff8ed');
-    const [gridColor, setGridColor] = useState('#1b2b33');
     const [textColor, setTextColor] = useState('#1b2b33');
+    const [isDarkMode, setIsDarkMode] = useState(false);
     const [preferencesLoaded, setPreferencesLoaded] = useState(false);
     const [isSpacePanning, setIsSpacePanning] = useState(false);
     const [dockPosition, setDockPosition] = useState<'top' | 'bottom'>('top');
@@ -189,14 +189,14 @@ export const InfiniteCanvas = () => {
         const nextSurfaceColor = storedSurfaceColor && /^#[0-9A-Fa-f]{6}$/.test(storedSurfaceColor)
             ? storedSurfaceColor
             : '#fff8ed';
-        const storedGridColor = window.localStorage.getItem('canvas-grid-color');
-        const nextGridColor = storedGridColor && /^#[0-9A-Fa-f]{6}$/.test(storedGridColor)
-            ? storedGridColor
-            : '#1b2b33';
         const storedTextColor = window.localStorage.getItem('canvas-text-color');
+        const storedTheme = window.localStorage.getItem('canvas-theme');
+        const nextIsDarkMode = storedTheme
+            ? storedTheme === 'dark'
+            : (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
         const nextTextColor = storedTextColor && /^#[0-9A-Fa-f]{6}$/.test(storedTextColor)
             ? storedTextColor
-            : '#1b2b33';
+            : (nextIsDarkMode ? '#ebf3f4' : '#1b2b33');
         const storedDockPosition = window.localStorage.getItem('canvas-dock-position');
         const nextDockPosition: 'top' | 'bottom' = storedDockPosition === 'bottom' ? 'bottom' : 'top';
         const storedShowMinimap = window.localStorage.getItem('canvas-show-minimap');
@@ -214,8 +214,13 @@ export const InfiniteCanvas = () => {
             setCornerRadius(nextCornerRadius);
             setAccentColor(nextAccentColor);
             setSurfaceColor(nextSurfaceColor);
-            setGridColor(nextGridColor);
             setTextColor(nextTextColor);
+            setIsDarkMode(nextIsDarkMode);
+            if (nextIsDarkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
             setDockPosition(nextDockPosition);
             setShowMinimap(nextShowMinimap);
             setShowButtonLabels(nextShowButtonLabels);
@@ -234,14 +239,38 @@ export const InfiniteCanvas = () => {
         window.localStorage.setItem('canvas-corner-radius', String(cornerRadius));
         window.localStorage.setItem('canvas-accent-color', accentColor);
         window.localStorage.setItem('canvas-surface-color', surfaceColor);
-        window.localStorage.setItem('canvas-grid-color', gridColor);
         window.localStorage.setItem('canvas-text-color', textColor);
+        window.localStorage.setItem('canvas-theme', isDarkMode ? 'dark' : 'light');
         window.localStorage.setItem('canvas-dock-position', dockPosition);
         window.localStorage.setItem('canvas-show-minimap', showMinimap ? 'on' : 'off');
         window.localStorage.setItem('canvas-show-button-labels', showButtonLabels ? 'on' : 'off');
         window.localStorage.setItem('canvas-animations-enabled', animationsEnabled ? 'on' : 'off');
-    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, gridColor, textColor, dockPosition, showMinimap, showButtonLabels, animationsEnabled]);
+    }, [preferencesLoaded, isBeautifulUI, snapToGrid, gridResolution, sharpEdges, cornerRadius, accentColor, surfaceColor, textColor, dockPosition, showMinimap, showButtonLabels, animationsEnabled, isDarkMode]);
 
+    useEffect(() => {
+        if (!preferencesLoaded) return;
+        if (isDarkMode) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }, [isDarkMode, preferencesLoaded]);
+
+    const toggleDarkMode = useCallback(() => {
+        setIsDarkMode((prev) => {
+            const next = !prev;
+            if (next) {
+                if (surfaceColor === '#fff8ed' || surfaceColor === '#fffdfa') setSurfaceColor('#101f2a');
+                if (textColor === '#1b2b33') setTextColor('#ebf3f4');
+                if (accentColor === '#0f766e') setAccentColor('#25c5b7');
+            } else {
+                if (surfaceColor === '#101f2a' || surfaceColor === '#143040') setSurfaceColor('#fff8ed');
+                if (textColor === '#ebf3f4') setTextColor('#1b2b33');
+                if (accentColor === '#25c5b7') setAccentColor('#0f766e');
+            }
+            return next;
+        });
+    }, [surfaceColor, textColor, accentColor]);
     const markLocalEdit = useCallback(() => {}, []);
 
     const persistedCanvasState = useMemo(() => sanitizeStateForStorage({
@@ -886,14 +915,15 @@ export const InfiniteCanvas = () => {
     const dockSettingsOrderClass = dockPosition === 'top' ? 'order-3' : 'order-1';
     const minimapPositionClass = dockPosition === 'bottom' ? 'bottom-[8.25rem]' : 'bottom-4';
     const gridLineColor = useMemo(() => {
-        const hex = gridColor.replace('#', '');
-        if (hex.length !== 6) return 'rgba(27, 43, 51, 0.1)';
+        const hex = textColor.replace('#', '');
+        if (hex.length !== 6) return isDarkMode ? 'rgba(235, 243, 244, 0.08)' : 'rgba(27, 43, 51, 0.1)';
         const r = Number.parseInt(hex.slice(0, 2), 16);
         const g = Number.parseInt(hex.slice(2, 4), 16);
         const b = Number.parseInt(hex.slice(4, 6), 16);
-        if ([r, g, b].some(Number.isNaN)) return 'rgba(27, 43, 51, 0.1)';
-        return `rgba(${r}, ${g}, ${b}, 0.12)`;
-    }, [gridColor]);
+        if ([r, g, b].some(Number.isNaN)) return isDarkMode ? 'rgba(235, 243, 244, 0.08)' : 'rgba(27, 43, 51, 0.1)';
+        const alpha = isDarkMode ? 0.14 : 0.09;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }, [textColor, isDarkMode]);
     const panelRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
     const segmentRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-md)]';
     const segmentButtonRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
@@ -1058,27 +1088,41 @@ export const InfiniteCanvas = () => {
                 {showCanvasSettings && (
                     <div
                         className={clsx(
-                            "pointer-events-auto relative z-[2200] border border-border px-3.5 py-3",
+                            "pointer-events-auto relative z-[2200] border border-border/80 bg-card/95 text-foreground px-3.5 py-3 backdrop-blur-md shadow-lg",
                             dockSettingsWidthClass,
                             dockSettingsOrderClass,
-                            panelRadiusClass,
-                            isBeautifulUI && "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"
+                            panelRadiusClass
                         )}
-                        style={{ backgroundColor: surfaceColor, color: textColor }}
                     >
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                            <div className="min-w-0">
+                                <div className="text-[12px] font-semibold">Theme</div>
+                                <div className="text-[10px] opacity-70">Switch between dark and light mode.</div>
+                            </div>
+                            <button
+                                className={clsx(
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold sm:min-w-28 sm:self-auto transition-colors",
+                                    sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                                )}
+                                onClick={toggleDarkMode}
+                                title="Toggle dark mode"
+                            >
+                                {isDarkMode ? <Moon size={13} className="text-primary" /> : <Sun size={13} className="text-amber-500" />}
+                                <span>{isDarkMode ? 'Dark' : 'Light'}</span>
+                            </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">UI Mode</div>
                                 <div className="text-[10px] opacity-70">Fast mode minimizes effects. Beautiful restores depth and shadows.</div>
                             </div>
                             <button
                                 className={clsx(
-                                    "inline-flex h-9 min-w-24 self-start items-center justify-center border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold hover:border-[color:var(--canvas-accent-70)] sm:min-w-28 sm:self-auto",
+                                    "inline-flex h-9 min-w-24 self-start items-center justify-center border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-3 text-[11px] font-semibold sm:min-w-28 sm:self-auto transition-colors",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                 )}
                                 onClick={() => setIsBeautifulUI((prev) => !prev)}
                                 title="Toggle UI quality"
-                                style={{ color: textColor }}
                             >
                                 {isBeautifulUI ? 'Beautiful' : 'Fast'}
                             </button>
@@ -1253,18 +1297,17 @@ export const InfiniteCanvas = () => {
                         <div className="mt-3 flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                             <div className="min-w-0">
                                 <div className="text-[12px] font-semibold">Colour</div>
-                                <div className="text-[10px] opacity-70">Accent, surface, grid, and text colors.</div>
+                                <div className="text-[10px] opacity-70">Accent, text, and background colors.</div>
                             </div>
                             <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
                                 <label
                                     className={clsx(
-                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
+                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors cursor-pointer",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
                                     title="Accent color"
-                                    style={{ backgroundColor: surfaceColor }}
                                 >
-                                    A
+                                    <span>Accent</span>
                                     <input
                                         type="color"
                                         value={accentColor}
@@ -1274,49 +1317,31 @@ export const InfiniteCanvas = () => {
                                 </label>
                                 <label
                                     className={clsx(
-                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
+                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors cursor-pointer",
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                                     )}
-                                    title="Surface color"
-                                    style={{ backgroundColor: surfaceColor }}
+                                    title="Foreground / Text color"
                                 >
-                                    S
-                                    <input
-                                        type="color"
-                                        value={surfaceColor}
-                                        onChange={(e) => setSurfaceColor(e.target.value)}
-                                        className="h-5 w-5 cursor-pointer border-none bg-transparent p-0"
-                                    />
-                                </label>
-                                <label
-                                    className={clsx(
-                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
-                                    )}
-                                    title="Grid color"
-                                    style={{ backgroundColor: surfaceColor }}
-                                >
-                                    G
-                                    <input
-                                        type="color"
-                                        value={gridColor}
-                                        onChange={(e) => setGridColor(e.target.value)}
-                                        className="h-5 w-5 cursor-pointer border-none bg-transparent p-0"
-                                    />
-                                </label>
-                                <label
-                                    className={clsx(
-                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-[#21404a]/35 px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#1b2b33]",
-                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
-                                    )}
-                                    title="Text color"
-                                    style={{ backgroundColor: surfaceColor }}
-                                >
-                                    T
+                                    <span>Text</span>
                                     <input
                                         type="color"
                                         value={textColor}
                                         onChange={(e) => setTextColor(e.target.value)}
+                                        className="h-5 w-5 cursor-pointer border-none bg-transparent p-0"
+                                    />
+                                </label>
+                                <label
+                                    className={clsx(
+                                        "inline-flex h-9 items-center justify-center gap-1.5 border border-border/80 bg-background/80 text-foreground hover:bg-secondary px-2.5 text-[10px] font-semibold uppercase tracking-[0.08em] transition-colors cursor-pointer",
+                                        sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
+                                    )}
+                                    title="Background color"
+                                >
+                                    <span>BG</span>
+                                    <input
+                                        type="color"
+                                        value={surfaceColor}
+                                        onChange={(e) => setSurfaceColor(e.target.value)}
                                         className="h-5 w-5 cursor-pointer border-none bg-transparent p-0"
                                     />
                                 </label>
