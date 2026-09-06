@@ -102,20 +102,20 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDo
                 shellRadiusClass,
                 (isHovered || isDragging)
                     ? isBeautifulUI
-                        ? "border-[#1b2b33]/35 bg-[#fff6dd] shadow-[0_16px_36px_rgba(33,36,41,0.16)]"
-                        : "border-[#1b2b33]/35 bg-[#fff6dd]"
+                        ? "border-border bg-card shadow-lg"
+                        : "border-border bg-card"
                     : "border-transparent bg-transparent"
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#ffe5a8]/80 px-3.5 active:cursor-grabbing",
+                        "drag-handle flex h-9 shrink-0 cursor-grab items-center justify-between border-b border-border/60 bg-secondary/40 px-3 active:cursor-grabbing",
                         (isHovered || isDragging) ? "opacity-100" : "opacity-0"
                     )}
                     style={{ touchAction: 'none' }}
                 >
                     <div className="flex items-center gap-2">
-                        <GripVertical size={14} className="text-[#1b2b33]/70" />
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#22363f]">Note</span>
+                        <GripVertical size={14} className="text-muted-foreground" />
+                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Note</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <Button
@@ -132,27 +132,27 @@ const NoteNodeComponent = ({ node, updatePos, updateContent, onDelete, onMouseDo
                         >
                             <Plus size={16} />
                         </Button>
-                        <X data-no-drag size={16} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                        <X data-no-drag size={16} className="cursor-pointer text-muted-foreground hover:text-destructive transition-colors" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
                 <Textarea
                     value={node.content}
                     onChange={(e) => updateContent(e.target.value)}
-                    className="h-full w-full resize-none border-none bg-transparent px-4 py-3 text-sm leading-tight text-[#22363f] focus-visible:ring-0"
+                    className="h-full w-full resize-none border-none bg-transparent px-4 py-3 text-sm leading-tight text-foreground placeholder:text-muted-foreground focus-visible:ring-0"
                     placeholder="Notes..."
                 />
             </div>
             <div
                 className={clsx(
-                    "absolute left-4 z-0 border border-[#1b2b33]/20 px-3 py-1 shadow-sm pointer-events-none",
+                    "absolute left-4 z-0 border border-border/60 px-2.5 py-1 shadow-sm pointer-events-none",
                     contextFeedback ? "opacity-100 top-[calc(100%-4px)]" : "opacity-0 top-[calc(100%-16px)]",
-                    (isHovered || isDragging) ? "bg-[#fffdf7]" : "bg-transparent",
+                    (isHovered || isDragging) ? "bg-card" : "bg-transparent",
                     sharpEdges ? "rounded-none" : "rounded-b-[var(--canvas-radius-sm)]"
                 )}
             >
                 <div className="flex items-center gap-1.5 opacity-80">
                     <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
-                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">Context added</span>
+                    <span className="text-[10px] font-medium tracking-wide text-foreground">Context added</span>
                 </div>
             </div>
         </div>

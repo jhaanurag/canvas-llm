@@ -164,20 +164,20 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeauti
                 shellRadiusClass,
                 (isHovered || isDragging)
                     ? isBeautifulUI
-                        ? "border-[#1b2b33]/35 bg-[#fffaf2] shadow-[0_16px_36px_rgba(33,36,41,0.16)]"
-                        : "border-[#1b2b33]/35 bg-[#fffaf2]"
+                        ? "border-border bg-card shadow-lg"
+                        : "border-border bg-card"
                     : "border-transparent bg-transparent"
             )}>
                 <div
                     className={clsx(
-                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#eef5f8]/90 px-3.5 active:cursor-grabbing",
+                        "drag-handle flex h-9 shrink-0 cursor-grab items-center justify-between border-b border-border/60 bg-secondary/40 px-3 active:cursor-grabbing",
                         (isHovered || isDragging) ? "opacity-100" : "opacity-0"
                     )}
                     onPointerDown={handleDragStart}
                     style={{ touchAction: 'none' }}
                 >
                     <div className="flex items-center gap-1">
-                        <GripVertical size={14} className="text-[#1b2b33]/70" />
+                        <GripVertical size={14} className="text-muted-foreground" />
                         <div className="ml-1 flex gap-1 overflow-hidden">
                             <Button data-no-drag size="icon" variant="ghost" className={clsx("h-7 w-7 p-0 hover:bg-[color:var(--node-accent-15)]", controlRadiusClass)} onClick={() => setTool('pen')}>
                                 <Pencil size={12} style={tool === 'pen' ? { color: accentColor } : undefined} />
@@ -212,7 +212,7 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeauti
                             )}
                         </div>
                     </div>
-                    <X data-no-drag size={14} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                    <X data-no-drag size={14} className="cursor-pointer text-muted-foreground hover:text-destructive transition-colors" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                 </div>
                 <canvas
                     ref={canvasRef}
@@ -239,15 +239,15 @@ const DrawingNodeComponent = ({ node, updatePos, onDelete, onMouseDown, isBeauti
             </div>
             <div
                 className={clsx(
-                    "absolute left-4 z-0 border border-[#1b2b33]/20 px-3 py-1 shadow-sm pointer-events-none",
+                    "absolute left-4 z-0 border border-border/60 px-2.5 py-1 shadow-sm pointer-events-none",
                     contextFeedback ? "opacity-100 top-[calc(100%-4px)]" : "opacity-0 top-[calc(100%-16px)]",
-                    (isHovered || isDragging) ? "bg-[#fffdf7]" : "bg-transparent",
+                    (isHovered || isDragging) ? "bg-card" : "bg-transparent",
                     sharpEdges ? "rounded-none" : "rounded-b-[var(--canvas-radius-sm)]"
                 )}
             >
                 <div className="flex items-center gap-1.5 opacity-80">
                     <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ backgroundColor: accentColor }} />
-                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">Image added</span>
+                    <span className="text-[10px] font-medium tracking-wide text-foreground">Image added</span>
                 </div>
             </div>
         </div>

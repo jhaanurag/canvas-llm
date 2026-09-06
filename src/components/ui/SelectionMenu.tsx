@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -18,8 +17,8 @@ interface SelectionMenuProps {
 }
 
 export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false, accentColor = '#0f766e', onExpand, onAddToContext, onClose }: SelectionMenuProps) => {
-    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius)]';
-    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-[var(--canvas-radius-sm)]';
+    const shellRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-xl';
+    const controlRadiusClass = sharpEdges ? 'rounded-none' : 'rounded-lg';
 
     const cssVars = {
         '--node-accent': accentColor,
@@ -32,9 +31,8 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
         <div
             data-selection-menu="true"
             className={clsx(
-                "fixed z-[9999] flex items-center gap-1.5 border border-[#1b2b33]/30 bg-[#fff8ed] px-1.5 py-1.5",
-                shellRadiusClass,
-                isBeautifulUI && "shadow-[0_8px_18px_rgba(33,36,41,0.2)]"
+                "fixed z-[9999] flex items-center gap-1.5 border border-border bg-card/95 backdrop-blur-sm px-1.5 py-1.5 shadow-lg",
+                shellRadiusClass
             )}
             style={{ left: x, top: y, ...cssVars }}
             onPointerDown={(e) => e.stopPropagation()}
@@ -42,7 +40,7 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
             <Button
                 size="sm"
                 variant="ghost"
-                className={clsx("h-8 border border-[#1b2b33]/20 bg-[#fff8ed]/80 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]", controlRadiusClass)}
+                className={clsx("h-8 border border-border/80 bg-background/80 px-3 text-xs font-semibold uppercase tracking-wider text-foreground hover:bg-[color:var(--node-accent)] hover:text-white transition-colors", controlRadiusClass)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onExpand}
             >
@@ -52,18 +50,20 @@ export const SelectionMenu = ({ x, y, isBeautifulUI = false, sharpEdges = false,
             <Button
                 size="sm"
                 variant="ghost"
-                className={clsx("h-8 border border-[#1b2b33]/20 bg-[#fff8ed]/80 px-3 text-[11px] font-semibold hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]", controlRadiusClass)}
+                className={clsx("h-8 border border-border/80 bg-background/80 px-2.5 text-xs font-semibold text-foreground hover:bg-[color:var(--node-accent)] hover:text-white transition-colors", controlRadiusClass)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onAddToContext}
+                title="Add to Context"
             >
                 <Plus size={16} />
             </Button>
             <Button
                 size="sm"
                 variant="ghost"
-                className={clsx("h-8 border border-red-500/25 px-2 text-[11px] font-semibold text-red-700 hover:bg-red-100", controlRadiusClass)}
+                className={clsx("h-8 border border-destructive/30 px-2 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors", controlRadiusClass)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={onClose}
+                title="Close"
             >
                 <X size={16} />
             </Button>

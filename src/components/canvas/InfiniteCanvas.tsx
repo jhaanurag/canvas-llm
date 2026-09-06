@@ -799,16 +799,16 @@ export const InfiniteCanvas = () => {
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
         isBeautifulUI
-            ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
-            : "border-transparent bg-transparent hover:bg-[#eadfcb]"
+            ? "border-border bg-card hover:bg-secondary/70 hover:border-border"
+            : "border-transparent bg-transparent hover:bg-secondary/70"
     );
     const dockSettingsButtonClass = clsx(
         "inline-flex h-10 items-center justify-center border text-[11px] font-semibold leading-none",
         showButtonLabels ? "gap-2 px-3.5" : "w-10 px-0",
         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
         isBeautifulUI
-            ? "border-[#21404a]/35 bg-[#fff8ed] hover:border-[color:var(--canvas-accent-70)]"
-            : "border-transparent bg-transparent hover:bg-[#eadfcb]"
+            ? "border-border bg-card hover:bg-secondary/70 hover:border-border"
+            : "border-transparent bg-transparent hover:bg-secondary/70"
     );
     const dockSettingsWidthClass = "w-full max-w-[min(100vw-1.5rem,78rem)]";
     const dockContextWidthClass = "w-fit max-w-[min(100vw-1.5rem,74rem)]";
@@ -994,7 +994,7 @@ export const InfiniteCanvas = () => {
                 {showCanvasSettings && (
                     <div
                         className={clsx(
-                            "pointer-events-auto relative z-[2200] border border-[#1b2b33]/25 px-3.5 py-3",
+                            "pointer-events-auto relative z-[2200] border border-border px-3.5 py-3",
                             dockSettingsWidthClass,
                             dockSettingsOrderClass,
                             panelRadiusClass,
@@ -1103,7 +1103,7 @@ export const InfiniteCanvas = () => {
                                 "flex h-10 items-center gap-1 border p-1",
                                 sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                 isBeautifulUI
-                                    ? "border-[#21404a]/35 bg-[#fff8ed]"
+                                    ? "border-border bg-card"
                                     : "border-[#776a54]/45 bg-[#f0e5cf]"
                             )}>
                                 <button
@@ -1112,7 +1112,7 @@ export const InfiniteCanvas = () => {
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'top'
                                             ? "text-[#f8fffd]"
-                                            : "text-[#1b2b33] hover:bg-[#e9dcc4]"
+                                            : "text-foreground hover:bg-secondary"
                                     )}
                                     onClick={() => setDockPosition('top')}
                                     style={dockPosition === 'top' ? { backgroundColor: accentColor } : { color: textColor }}
@@ -1125,7 +1125,7 @@ export const InfiniteCanvas = () => {
                                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]",
                                         dockPosition === 'bottom'
                                             ? "text-[#f8fffd]"
-                                            : "text-[#1b2b33] hover:bg-[#e9dcc4]"
+                                            : "text-foreground hover:bg-secondary"
                                     )}
                                     onClick={() => setDockPosition('bottom')}
                                     style={dockPosition === 'bottom' ? { backgroundColor: accentColor } : { color: textColor }}
@@ -1270,14 +1270,14 @@ export const InfiniteCanvas = () => {
                             dockContextOrderClass,
                             panelRadiusClass,
                             isBeautifulUI
-                                ? "border-[#1b2b33]/25"
+                                ? "border-border"
                                 : "border-[#776a54]/45 bg-[#f5eddc]",
                             isBeautifulUI && "shadow-[0_8px_20px_rgba(33,36,41,0.15)]"
                         )}
                         style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
                     >
                         <div className="flex items-center gap-2">
-                            <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#486069]">Context:</span>
+                            <span className="shrink-0 px-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Context:</span>
                             <div className="hover-scroll-x flex max-w-[min(62vw,42rem)] items-center gap-2 overflow-x-auto pb-0.5">
                                 {contextBuffer.map(item => {
                                     const words = item.text.trim().split(/\s+/).filter(w => w.length > 0);
@@ -1294,8 +1294,8 @@ export const InfiniteCanvas = () => {
                                                 "flex h-8 shrink-0 items-center gap-1 border px-2.5 text-[11px] hover:border-red-500/40 hover:text-red-700 hover:line-through",
                                                 sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                                 isBeautifulUI
-                                                    ? "border-[#1b2b33]/25 bg-[#fffaf2] text-[#1b2b33]"
-                                                    : "border-[#776a54]/45 bg-[#f0e5cf] text-[#21313a]"
+                                                    ? "border-border bg-card text-foreground"
+                                                    : "border-border/80 bg-card text-foreground"
                                             )}
                                             title="Click to remove"
                                         >
@@ -1323,8 +1323,8 @@ export const InfiniteCanvas = () => {
                                     "inline-flex h-8 shrink-0 items-center border px-2.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-red-700 hover:bg-red-50",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
                                     isBeautifulUI
-                                        ? "border-red-500/30 bg-[#fff8ed]"
-                                        : "border-red-500/35 bg-[#f5eddc]"
+                                        ? "border-destructive/30 bg-card"
+                                        : "border-destructive/30 bg-card"
                                 )}
                             >
                                 Clear
@@ -1339,7 +1339,7 @@ export const InfiniteCanvas = () => {
                         dockMenuWidthClass,
                         dockMenuOrderClass,
                         isBeautifulUI
-                            ? ["border border-[#1b2b33]/25 px-3 py-2.5", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
+                            ? ["border border-border px-3 py-2.5", panelRadiusClass, "shadow-[0_10px_26px_rgba(33,36,41,0.18)]"]
                             : "px-0 py-0"
                     )}
                     style={isBeautifulUI ? { backgroundColor: surfaceColor, color: textColor } : undefined}
@@ -1350,7 +1350,7 @@ export const InfiniteCanvas = () => {
                                 <div className={clsx(
                                     "inline-flex h-10 items-center gap-1.5 border px-3 text-[11px] font-semibold tracking-[0.14em]",
                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]",
-                                    "border-[#21404a]/35 bg-[#fff8ed]"
+                                    "border-border bg-card"
                                 )} style={{ color: textColor }}>
                                     <MapIcon size={13} />
                                     RabbitHoleAI
@@ -1360,7 +1360,7 @@ export const InfiniteCanvas = () => {
                             "flex h-10 items-center gap-1 border p-1",
                             segmentRadiusClass,
                             isBeautifulUI
-                                ? "border-[#1b2b33]/25 bg-[#fff8ed]"
+                                ? "border-border bg-[#fff8ed]"
                                 : "border-transparent bg-transparent"
                             )}>
                             <button
@@ -1370,7 +1370,7 @@ export const InfiniteCanvas = () => {
                                     segmentButtonRadiusClass,
                                     activeTool === 'select'
                                         ? ""
-                                        : "text-[#1b2b33] hover:bg-[#e9dcc4]"
+                                        : "text-foreground hover:bg-secondary"
                                 )}
                                 onClick={() => setActiveTool('select')}
                                 title="Select mode"
@@ -1386,7 +1386,7 @@ export const InfiniteCanvas = () => {
                                     segmentButtonRadiusClass,
                                     activeTool === 'hand'
                                         ? ""
-                                        : "text-[#1b2b33] hover:bg-[#e9dcc4]"
+                                        : "text-foreground hover:bg-secondary"
                                 )}
                                 onClick={() => setActiveTool('hand')}
                                 title="Hand mode"

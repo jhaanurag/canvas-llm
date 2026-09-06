@@ -594,21 +594,21 @@ const ChatNodeComponent = ({
                     shellRadiusClass,
                     showChrome
                         ? isBeautifulUI
-                            ? "border-[#1b2b33]/35 bg-[#fff8ed] shadow-[0_16px_36px_rgba(33,36,41,0.18)]"
-                            : "border-[#1b2b33]/35 bg-[#fff8ed]"
+                            ? "border-border bg-card shadow-lg"
+                            : "border-border bg-card"
                         : "border-transparent bg-transparent"
                 )}
                 style={{ padding: 0, gap: 0 }}
             >
                 <div
                     className={clsx(
-                        "drag-handle flex h-10 shrink-0 cursor-grab items-center justify-between border-b border-[#1b2b33]/20 bg-[#edf5f8]/90 px-3.5 active:cursor-grabbing",
+                        "drag-handle flex h-9 shrink-0 cursor-grab items-center justify-between border-b border-border/60 bg-secondary/40 px-3 active:cursor-grabbing",
                         showChrome ? "opacity-100" : "opacity-0"
                     )}
                     style={{ touchAction: 'none' }}
                 >
                     <div className="flex items-center gap-2">
-                        <GripVertical size={14} className="text-[#1b2b33]/70" />
+                        <GripVertical size={14} className="text-muted-foreground" />
                         {isEditingTitle ? (
                             <input
                                 data-no-drag
@@ -625,7 +625,7 @@ const ChatNodeComponent = ({
                                         updateTitle(title);
                                     }
                                 }}
-                                className="w-24 border-none bg-transparent text-[10px] font-semibold uppercase tracking-[0.12em] text-[#22363f] outline-none"
+                                className="w-24 border-none bg-transparent text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground outline-none"
                                 autoFocus
                                 onClick={(e) => e.stopPropagation()}
                             />
@@ -633,7 +633,7 @@ const ChatNodeComponent = ({
                             <span
                                 data-no-drag
                                 className={clsx(
-                                    "cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-[#22363f] hover:text-[color:var(--node-accent)]",
+                                    "cursor-pointer text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground hover:text-[color:var(--node-accent)]",
                                 )}
                                 style={{ color: isEditingTitle ? accentColor : undefined }}
                                 onClick={(e) => {
@@ -707,16 +707,16 @@ const ChatNodeComponent = ({
                         >
                             <Droplets size={16} style={bubbleTransparencyMode === 'auto' ? { color: accentColor } : undefined} />
                         </Button>
-                        <X data-no-drag size={16} className="cursor-pointer text-[#6f4951] hover:text-[#b42318]" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
+                        <X data-no-drag size={16} className="cursor-pointer text-muted-foreground hover:text-destructive transition-colors" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDelete(); }} />
                     </div>
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-0 relative">
                     {node.sourceSelection && (
                         <div className={clsx(
-                            "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap border-b border-[#1b2b33]/20 p-2 text-[10px] italic font-medium",
+                            "shrink-0 overflow-hidden text-ellipsis whitespace-nowrap border-b border-border/60 p-2 text-[10px] italic font-medium",
                             (isHovered || isDragging) ? "opacity-100" : "opacity-50",
-                            "bg-[#f4eee0]"
+                            "bg-secondary/30"
                         )}>
                             <span style={{ color: accentColor }}>
                                 Origin: &quot;{node.sourceSelection}&quot;
@@ -725,10 +725,10 @@ const ChatNodeComponent = ({
                     )}
 
                     {activePanel === 'system' ? (
-                        <div className="flex flex-1 flex-col overflow-hidden border-b border-[#1b2b33]/20 bg-[#def3f2] px-4 py-3">
-                            <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">System Prompt</span>
+                        <div className="flex flex-1 flex-col overflow-hidden border-b border-border/60 bg-secondary/40 px-4 py-3">
+                            <span className="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground">System Prompt</span>
                             <Textarea
-                                className="flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
+                                className="flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs text-foreground focus-visible:ring-0"
                                 value={systemPrompt}
                                 onChange={(e) => {
                                     const newPrompt = e.target.value;
@@ -739,16 +739,16 @@ const ChatNodeComponent = ({
                             />
                         </div>
                     ) : activePanel === 'memory' ? (
-                        <div className="flex flex-1 flex-col overflow-hidden border-b border-[#1b2b33]/20 bg-[#def3f2] px-4 py-3">
+                        <div className="flex flex-1 flex-col overflow-hidden border-b border-border/60 bg-secondary/40 px-4 py-3">
                             <div className="mb-2 flex items-center justify-between">
                                 <div>
-                                    <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#1b2b33]">Memory Subagent</span>
+                                    <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground">Memory Subagent</span>
                                     <span className="text-[10px] text-[#37535c]">Editable raw context used by the memory subagent.</span>
                                 </div>
                                 <Brain size={15} style={{ color: accentColor }} />
                             </div>
                             <Textarea
-                                className="flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs text-[#1b2b33] focus-visible:ring-0"
+                                className="flex-1 resize-none rounded-none border-none bg-transparent p-0 text-xs text-foreground focus-visible:ring-0"
                                 value={memoryDraft}
                                 onChange={(e) => saveMemoryDraft(e.target.value)}
                                 placeholder={`Memory 1:\nImportant offloaded context goes here.\n\n---\n\nMemory 2:\nAdd another memory block here.`}
@@ -767,9 +767,9 @@ const ChatNodeComponent = ({
                                         <div key={msg.id} className="flex w-full justify-start">
                                             <div
                                                 className={clsx(
-                                                    "memory-status-shell relative min-w-0 max-w-[94%] overflow-hidden border px-4 py-2 text-xs leading-tight font-medium text-[#1b2b33]",
+                                                    "memory-status-shell relative min-w-0 max-w-[94%] overflow-hidden border px-4 py-2 text-xs leading-tight font-medium text-foreground",
                                                     dimBubbles ? "opacity-100 shadow-none" : "opacity-100 shadow-[0_2px_7px_rgba(33,36,41,0.09)]",
-                                                    "border-[#1b2b33]/20 bg-[#fffdf7]",
+                                                    "border-border/60 bg-card",
                                                     sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-md)]",
                                                     memoryWorkflow?.phase === 'error' && "text-[#8a2018]"
                                                 )}
@@ -817,12 +817,12 @@ const ChatNodeComponent = ({
                                                     dimBubbles ? "opacity-100 shadow-none" : "opacity-100",
                                                     msg.kind === 'memory-request' && "border-[#a78bfa]/30 bg-[#f4efff] text-[#4c2f8a]",
                                                     msg.kind === 'memory-response' && "border-[#8acfc5]/40 bg-[#e4fbf6] text-[#145a50]",
-                                                    msg.kind === 'compressed' && msg.role !== 'user' && "border-[#d0b77f]/35 bg-[#fff6de] text-[#5c4516]",
+                                                    msg.kind === 'compressed' && msg.role !== 'user' && "border-border/60 bg-secondary/50 text-foreground",
                                                     msg.role === 'user'
                                                         ? (dimBubbles ? "border-transparent bg-transparent text-[color:var(--node-accent)]" : "")
                                                         : (msg.kind
                                                             ? ""
-                                                            : (dimBubbles ? "border-transparent bg-transparent text-[#1b2b33]" : "border-[#1b2b33]/20 bg-[#fffdf7] text-[#1b2b33]")),
+                                                            : (dimBubbles ? "border-transparent bg-transparent text-foreground" : "border-border/60 bg-card text-foreground")),
                                                     isBeautifulUI && !dimBubbles && "shadow-[0_2px_7px_rgba(33,36,41,0.09)]"
                                                 )}
                                                 style={{
@@ -856,7 +856,7 @@ const ChatNodeComponent = ({
                                                                     className={clsx("h-auto max-w-full border border-[#1b2b33]/20", headerButtonRadiusClass)}
                                                                 />
                                                             ) : (
-                                                                <div key={idx} className={clsx("truncate bg-[#f4eee0] p-1 text-[10px] text-[#1b2b33]", headerButtonRadiusClass)}>
+                                                                <div key={idx} className={clsx("truncate bg-secondary/30 p-1 text-[10px] text-foreground", headerButtonRadiusClass)}>
                                                                     📎 {file.name}
                                                                 </div>
                                                             )
@@ -874,12 +874,12 @@ const ChatNodeComponent = ({
                 </div>
 
                 {attachedFiles.length > 0 && (
-                    <div data-no-drag className="flex flex-wrap gap-1.5 border-t border-[#1b2b33]/22 bg-[#fffdf7]/80 px-3 pt-2.5">
+                    <div data-no-drag className="flex flex-wrap gap-1.5 border-t border-border/60 bg-card/80 px-3 pt-2.5">
                         {attachedFiles.map((file, idx) => (
                             <div
                                 key={`${file.name}-${idx}`}
                                 className={clsx(
-                                    "group relative flex items-center gap-1.5 overflow-hidden border border-[#1b2b33]/20 bg-white pr-1.5",
+                                    "group relative flex items-center gap-1.5 overflow-hidden border border-border/60 bg-background pr-1.5",
                                     controlRadiusClass
                                 )}
                             >
@@ -895,11 +895,11 @@ const ChatNodeComponent = ({
                                 ) : (
                                     <span className="flex h-7 w-7 shrink-0 items-center justify-center text-sm">📎</span>
                                 )}
-                                <span className="max-w-20 truncate text-[10px] font-medium text-[#1b2b33]">{file.name}</span>
+                                <span className="max-w-20 truncate text-[10px] font-medium text-foreground">{file.name}</span>
                                 <button
                                     type="button"
                                     onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
-                                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1b2b33]/10 text-[#1b2b33] hover:bg-[#1b2b33]/25"
+                                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#1b2b33]/10 text-foreground hover:bg-[#1b2b33]/25"
                                     aria-label={`Remove ${file.name}`}
                                 >
                                     <X size={10} />
@@ -910,7 +910,7 @@ const ChatNodeComponent = ({
                 )}
                 <div className={clsx(
                     "relative flex shrink-0 gap-2 border-t bg-transparent px-3 py-2.5",
-                    attachedFiles.length > 0 ? "border-transparent" : (isActive ? "border-[#1b2b33]/22 opacity-100" : "border-transparent opacity-50")
+                    attachedFiles.length > 0 ? "border-transparent" : (isActive ? "border-border/60 opacity-100" : "border-transparent opacity-50")
                 )}>
                     <input type="file" ref={fileInputRef} className="hidden" multiple onChange={handleFileUpload} />
                     <Button
@@ -919,7 +919,7 @@ const ChatNodeComponent = ({
                         className={clsx(
                             "h-10 w-10 border p-0 bg-transparent hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
                             controlRadiusClass,
-                            isActive ? "border-[#1b2b33]/30" : "border-transparent"
+                            isActive ? "border-border/60" : "border-transparent"
                         )}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => fileInputRef.current?.click()}
@@ -939,9 +939,9 @@ const ChatNodeComponent = ({
                         }}
                         placeholder="Ask AI..."
                         className={clsx(
-                            "h-10 min-h-10 max-h-10 flex-1 resize-none overflow-hidden border bg-[#fffdf7] px-3 py-2 text-sm leading-5 text-[#1b2b33] focus-visible:ring-2",
+                            "h-10 min-h-10 max-h-10 flex-1 resize-none overflow-hidden border bg-background px-3 py-2 text-sm leading-5 text-foreground focus-visible:ring-2",
                             controlRadiusClass,
-                            isActive ? "border-[#1b2b33]/28" : "border-transparent"
+                            isActive ? "border-border/60" : "border-transparent"
                         )}
                         autoFocus
                     />
@@ -951,7 +951,7 @@ const ChatNodeComponent = ({
                         className={clsx(
                             "h-10 border bg-transparent px-4 hover:bg-[color:var(--node-accent)] hover:text-[#f8fffd]",
                             controlRadiusClass,
-                            isActive ? "border-[#1b2b33]/30" : "border-transparent"
+                            isActive ? "border-border/60" : "border-transparent"
                         )}
                     >
                         <Send size={18} />
@@ -963,15 +963,15 @@ const ChatNodeComponent = ({
                 <div
                     data-no-drag
                     className={clsx(
-                        "absolute inset-x-3 top-12 z-[2400] border border-[#1b2b33]/20 bg-[#fff8ed] p-3 shadow-[0_18px_42px_rgba(33,36,41,0.16)]",
+                        "absolute inset-x-3 top-12 z-[2400] border border-[#1b2b33]/20 bg-card p-3 shadow-[0_18px_42px_rgba(33,36,41,0.16)]",
                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                     )}
                     onPointerDown={(e) => e.stopPropagation()}
                 >
                     <div className="mb-2 flex items-center justify-between">
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#22363f]">Edit Raw Context</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground">Edit Raw Context</span>
                         <button
-                            className="text-[10px] font-medium text-[#6f4951] hover:text-[#1b2b33]"
+                            className="text-[10px] font-medium text-[#6f4951] hover:text-foreground"
                             onClick={() => {
                                 setEditingMessageIndex(null);
                                 setEditingValue('');
@@ -984,7 +984,7 @@ const ChatNodeComponent = ({
                         value={editingValue}
                         onChange={(e) => setEditingValue(e.target.value)}
                         className={clsx(
-                            "min-h-32 border bg-[#fffdf7] text-xs text-[#1b2b33]",
+                            "min-h-32 border bg-background text-xs text-foreground",
                             controlRadiusClass
                         )}
                     />
@@ -1007,7 +1007,7 @@ const ChatNodeComponent = ({
                     (contextFeedback || (node.hasInitialContext && node.messages.length === 0))
                         ? "opacity-100 top-[calc(100%-4px)]"
                         : "opacity-0 top-[calc(100%-16px)] pointer-events-none",
-                    showChrome ? "bg-[#fffdf7]" : "bg-transparent",
+                    showChrome ? "bg-background" : "bg-transparent",
                     sharpEdges ? "rounded-none" : "rounded-b-[var(--canvas-radius-sm)]"
                 )}
             >
@@ -1016,7 +1016,7 @@ const ChatNodeComponent = ({
                         className="inline-block w-1.5 h-1.5 rounded-full" 
                         style={{ backgroundColor: accentColor }} 
                     />
-                    <span className="text-[10px] font-medium tracking-wide text-[#1b2b33]">
+                    <span className="text-[10px] font-medium tracking-wide text-foreground">
                         {contextFeedback ?? (hasInitialImageContext ? 'Context + Image added' : 'Context added')}
                     </span>
                 </div>
@@ -1026,7 +1026,7 @@ const ChatNodeComponent = ({
                     ref={messageMenuRef}
                     data-no-drag
                     className={clsx(
-                        "absolute z-[2500] min-w-48 border border-[#1b2b33]/20 bg-[#fffdf7] p-1.5 shadow-[0_10px_24px_rgba(33,36,41,0.16)] backdrop-blur-sm",
+                        "absolute z-[2500] min-w-48 border border-border/60 bg-card p-1.5 shadow-[0_10px_24px_rgba(33,36,41,0.16)] backdrop-blur-sm",
                         sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-sm)]"
                     )}
                     style={{ left: messageMenu.x, top: messageMenu.y }}
@@ -1034,7 +1034,7 @@ const ChatNodeComponent = ({
                 >
                     <button
                         className={clsx(
-                            "mb-1 flex h-8 w-full items-center justify-start gap-2 border border-transparent bg-transparent px-2 text-[11px] font-semibold text-[#22363f] hover:bg-[#edf5f8]",
+                            "mb-1 flex h-8 w-full items-center justify-start gap-2 border border-transparent bg-transparent px-2 text-[11px] font-semibold text-foreground hover:bg-[#edf5f8]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => {
@@ -1047,7 +1047,7 @@ const ChatNodeComponent = ({
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#edf5f8]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-foreground hover:bg-[#edf5f8]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => {
@@ -1059,7 +1059,7 @@ const ChatNodeComponent = ({
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#edf5f8]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-foreground hover:bg-[#edf5f8]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => startEditingMessage(messageMenu.index)}
@@ -1069,7 +1069,7 @@ const ChatNodeComponent = ({
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#edf5f8]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-foreground hover:bg-[#edf5f8]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => offloadMessage(messageMenu.index)}
@@ -1080,7 +1080,7 @@ const ChatNodeComponent = ({
                     <div className="my-1 h-px bg-[#1b2b33]/10" />
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-foreground hover:bg-[#f3ecdd]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => deleteMessagesAbove(messageMenu.index)}
@@ -1090,7 +1090,7 @@ const ChatNodeComponent = ({
                     </button>
                     <button
                         className={clsx(
-                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-[#22363f] hover:bg-[#f3ecdd]",
+                            "flex h-8 w-full items-center justify-start gap-2 px-2 text-[11px] font-medium text-foreground hover:bg-[#f3ecdd]",
                             sharpEdges ? "rounded-none" : "rounded-[var(--canvas-radius-xs)]"
                         )}
                         onClick={() => deleteMessagesBelow(messageMenu.index)}
